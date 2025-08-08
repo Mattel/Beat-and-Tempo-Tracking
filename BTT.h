@@ -105,6 +105,7 @@ BTT*      btt_new_default                        ();
 BTT*      btt_destroy                            (BTT* self);
 void      btt_process                            (BTT* self, dft_sample_t* input, int num_samples);
 double    btt_get_sample_rate                    (BTT* self);
+void      btt_set_sample_rate                    (BTT* self, double sample_rate);
 void      btt_init                               (BTT* self);
 void      btt_clear                              (BTT* self);
 void      btt_init_tempo                         (BTT* self, double bpm /*0 to clear tempo*/);

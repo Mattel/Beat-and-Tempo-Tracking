@@ -705,7 +705,6 @@ void btt_spectral_flux_stft_callback(void* SELF, dft_sample_t* real, int N)
       return;
     }
   
-  
   if((self->tracking_mode == BTT_ONSET_AND_TEMPO_TRACKING) ||
      (self->tracking_mode == BTT_ONSET_AND_TEMPO_AND_BEAT_TRACKING))
       if(self->num_oss_frames_processed >= self->oss_length)
@@ -729,6 +728,14 @@ double    btt_get_sample_rate                  (BTT* self)
 {
   return self->sample_rate;
 }
+
+void      btt_set_sample_rate                  (BTT* self, double sample_rate)
+{
+    self->sample_rate = sample_rate;
+    self->oss_sample_rate = sample_rate / stft_get_hop(self->spectral_flux_stft);
+    filter_set_sample_rate(self->oss_filter, self->oss_sample_rate);
+}
+
 
 /*--------------------------------------------------------------------*/
 void      btt_set_use_amplitude_normalization  (BTT* self, int use)
