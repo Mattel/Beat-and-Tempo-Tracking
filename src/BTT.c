@@ -52,11 +52,11 @@ struct Opaque_BTT_Struct
   STFT*              spectral_flux_stft;
   dft_sample_t*      prev_spectrum_magnitude;
   int                should_normalize_amplitude;
-  double             spectral_compression_gamma;
-  double             noise_cancellation_threshold;
+  float              spectral_compression_gamma;
+  float              noise_cancellation_threshold;
   AdaptiveThreshold* onset_threshold;
-  double             sample_rate;
-  double             oss_sample_rate;
+  float              sample_rate;
+  float              oss_sample_rate;
   Filter*            oss_filter;
   dft_sample_t*      oss;
   int                oss_index;
@@ -67,45 +67,45 @@ struct Opaque_BTT_Struct
   int                num_tempo_candidates;
   dft_sample_t*      autocorrelation_real;
   
-  double             autocorrelation_exponent;
+  float              autocorrelation_exponent;
   OnlineAverage*     tempo_score_variance;
-  double             log_gaussian_tempo_weight_width;
-  double             log_gaussian_tempo_weight_mean;
+  float              log_gaussian_tempo_weight_width;
+  float              log_gaussian_tempo_weight_mean;
   dft_sample_t*      gaussian_tempo_histogram;
-  double             gaussian_tempo_histogram_decay;
-  double             one_minus_gaussian_tempo_histogram_decay;
-  double             gaussian_tempo_histogram_width;
+  float              gaussian_tempo_histogram_decay;
+  float              one_minus_gaussian_tempo_histogram_decay;
+  float              gaussian_tempo_histogram_width;
 
-  unsigned long long num_audio_samples_processed;
-  unsigned long long num_oss_frames_processed;
+  unsigned int       num_audio_samples_processed;
+  unsigned int       num_oss_frames_processed;
   int                beat_period_oss_samples;
   
   float*             cbss;
   int                cbss_length;
   int                cbss_index;
-  double             cbss_alpha;
-  double             one_minus_cbss_alpha;
-  double             cbss_alpha_before_lock;
-  double             cbss_eta;
+  float              cbss_alpha;
+  float              one_minus_cbss_alpha;
+  float              cbss_alpha_before_lock;
+  float              cbss_eta;
   float*             predicted_beat_signal;
   int                predicted_beat_index;
   int                beat_prediction_adjustment;
   int                predicted_beat_trigger_index;
   int                predicted_beat_gaussian_width;
-  unsigned long long ignore_beats_until;
-  double             ignore_spurious_beats_duration;
+  unsigned int       ignore_beats_until;
+  float              ignore_spurious_beats_duration;
   
   int                count_in_n;
   OnlineAverage*     count_in_average;
   int                count_in_count;
-  unsigned long long last_count_in_time;
+  unsigned int       last_count_in_time;
   
   int                analysis_latency_onset_adjustment; /* in audio samples */
   int                analysis_latency_beat_adjustment_coarse; /* in oss samples */
   int                analysis_latency_beat_adjustment_fine; /* in audio samples */
   
-  unsigned long long metronome_clock;
-  unsigned long long metronome_lag;
+  unsigned int       metronome_clock;
+  unsigned int       metronome_lag;
   
   btt_tracking_mode_t   tracking_mode;
   btt_tracking_mode_t   tracking_mode_before_count_in;
@@ -132,7 +132,7 @@ BTT*   btt_new_default                      ()
 }
 
 /*--------------------------------------------------------------------*/
-BTT* btt_new(int spectral_flux_stft_len, int spectral_flux_stft_overlap, int oss_filter_order, int oss_length, int onset_threshold_len, int cbss_length, double sample_rate, int analysis_latency_onset_adjustment, int analysis_latency_beat_adjustment)
+BTT* btt_new(int spectral_flux_stft_len, int spectral_flux_stft_overlap, int oss_filter_order, int oss_length, int onset_threshold_len, int cbss_length, float sample_rate, int analysis_latency_onset_adjustment, int analysis_latency_beat_adjustment)
 {
   BTT* self = calloc(1, sizeof(*self));
   if(self != NULL)
@@ -265,7 +265,7 @@ void      btt_clear(BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_init_tempo(BTT* self, double bpm /*0 to clear tempo*/)
+void      btt_init_tempo(BTT* self, float bpm /*0 to clear tempo*/)
 {
   memset(self->gaussian_tempo_histogram, 0, self->oss_length * sizeof(*self->gaussian_tempo_histogram));
   memset(self->cbss, 0, self->cbss_length * sizeof(*self->cbss));
@@ -278,9 +278,9 @@ void      btt_init_tempo(BTT* self, double bpm /*0 to clear tempo*/)
     {
       float max_bpm = btt_get_max_tempo(self);
       float min_bpm = btt_get_min_tempo(self);
-      while (bpm > max_bpm) bpm *= 0.5;
+      while (bpm > max_bpm) bpm *= 0.5f;
       while (bpm < min_bpm) bpm *= 2;
-      int lag = round(BPM_TO_LAG(bpm));
+      int lag = roundf(BPM_TO_LAG(bpm));
     
       if((lag >= 0) && (lag < self->oss_length))
         {
@@ -308,7 +308,7 @@ int       btt_get_beat_period_audio_samples(BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_tempo_bpm(BTT* self)
+float     btt_get_tempo_bpm(BTT* self)
 {
   if(self->beat_period_oss_samples <=0)
     return 0;
@@ -319,18 +319,18 @@ double    btt_get_tempo_bpm(BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_metronome_bpm                  (BTT* self, double bpm)
+void      btt_set_metronome_bpm                  (BTT* self, float bpm)
 {
   float max_bpm = btt_get_max_tempo(self);
   float min_bpm = btt_get_min_tempo(self);
   if(bpm > max_bpm) bpm = max_bpm;
   if(bpm < min_bpm) bpm = min_bpm;
   
-  self->metronome_lag = round(BPM_TO_LAG(bpm));
+  self->metronome_lag = roundf(BPM_TO_LAG(bpm));
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_tempo_certainty(BTT* self)
+float     btt_get_tempo_certainty(BTT* self)
 {
   return self->gaussian_tempo_histogram[self->beat_period_oss_samples];
 }
@@ -350,9 +350,9 @@ void btt_onset_tracking              (BTT* self, dft_sample_t* real, int N)
   //perform log compression
   if(self->spectral_compression_gamma > 0)
     {
-      double denominator = 1 / log(1 + self->spectral_compression_gamma);
+      float denominator = 1 / logf(1 + self->spectral_compression_gamma);
       for(i=1; i<n_over_2; i++)
-        real[i] = denominator * log(1+self->spectral_compression_gamma*real[i]);
+        real[i] = denominator * logf(1+self->spectral_compression_gamma*real[i]);
     }
   
   //bins less than -74 dB are noise-cancelled
@@ -382,7 +382,7 @@ void btt_onset_tracking              (BTT* self, dft_sample_t* real, int N)
       {
         if(self->onset_callback != NULL)
           {
-            unsigned long long t = self->num_audio_samples_processed;
+            unsigned int t = self->num_audio_samples_processed;
             t -= self->analysis_latency_onset_adjustment;
             self->onset_callback(self->onset_callback_self, t);
           }
@@ -539,15 +539,15 @@ void btt_tempo_tracking              (BTT* self)
   //store decaying gaussian histogram
   int index_of_max_gaussian = 0;
   float gaussian, log_gaussian;;
-  log_gaussian = log2(candidate_tempo_lags[index_of_max_score] * self->log_gaussian_tempo_weight_mean);
+  log_gaussian = log2f(candidate_tempo_lags[index_of_max_score] * self->log_gaussian_tempo_weight_mean);
   log_gaussian *= log_gaussian;
-  log_gaussian = exp(-log_gaussian / self->log_gaussian_tempo_weight_width) * self->one_minus_gaussian_tempo_histogram_decay;
+  log_gaussian = expf(-log_gaussian / self->log_gaussian_tempo_weight_width) * self->one_minus_gaussian_tempo_histogram_decay;
 
   for(i=self->min_lag; i<self->max_lag; i++)
     {
       gaussian = i-candidate_tempo_lags[index_of_max_score];
       gaussian *= gaussian;
-      gaussian = exp(-gaussian / self->gaussian_tempo_histogram_width);
+      gaussian = expf(-gaussian / self->gaussian_tempo_histogram_width);
 
       self->gaussian_tempo_histogram[i] *= self->gaussian_tempo_histogram_decay;
       self->gaussian_tempo_histogram[i] += gaussian * log_gaussian;
@@ -567,7 +567,7 @@ void btt_beat_tracking               (BTT* self)
   float phi         = 0;
   float max_phi     = 0;
   int   start_index = -2   * self->beat_period_oss_samples;
-  int   end_index   = -0.5 * self->beat_period_oss_samples;
+  int   end_index   = -0.5f * self->beat_period_oss_samples;
   int   oss_index = (self->oss_index + self->oss_length - 1) % self->oss_length;
   int   base_cbss_index = self->cbss_index + (2*self->cbss_length);
   int   cbss_index;
@@ -581,10 +581,10 @@ void btt_beat_tracking               (BTT* self)
   for(i=start_index; i<end_index; i++)
     {
       cbss_index = (base_cbss_index + i) % self->cbss_length;
-      phi = log2(-(i/(float)self->beat_period_oss_samples));
+      phi = log2f(-(i/(float)self->beat_period_oss_samples));
       phi *= phi;
       phi *= self->cbss_eta;
-      phi = exp(phi);
+      phi = expf(phi);
       phi *= self->cbss[cbss_index];
     
       if(phi > max_phi)
@@ -628,7 +628,7 @@ void btt_beat_tracking               (BTT* self)
   
   max_phase = self->beat_period_oss_samples - max_phase;
   max_phase -= self->beat_prediction_adjustment + self->analysis_latency_beat_adjustment_coarse - self->predicted_beat_trigger_index;
-  max_phase =  fmod(max_phase, self->beat_period_oss_samples);
+  max_phase =  fmodf(max_phase, self->beat_period_oss_samples);
   
   //add this into the probabilities of future beats
   float gaussian;
@@ -638,7 +638,7 @@ void btt_beat_tracking               (BTT* self)
     {
       gaussian = (i % self->beat_period_oss_samples)-max_phase;
       gaussian *= gaussian;
-      gaussian = exp(-gaussian / self->predicted_beat_gaussian_width);
+      gaussian = expf(-gaussian / self->predicted_beat_gaussian_width);
       index = (self->predicted_beat_index + i) % self->cbss_length;
       self->predicted_beat_signal[index] += gaussian;
       if(self->predicted_beat_signal[index] > max_value)
@@ -659,7 +659,7 @@ void btt_beat_tracking               (BTT* self)
           self->ignore_beats_until = (int)(self->num_oss_frames_processed + (self->beat_period_oss_samples * self->ignore_spurious_beats_duration));
           if(self->beat_callback != NULL)
             {
-              unsigned long long t = self->num_audio_samples_processed;
+              unsigned int t = self->num_audio_samples_processed;
               t += self->beat_prediction_adjustment * stft_get_hop(self->spectral_flux_stft);
               t -= self->analysis_latency_beat_adjustment_fine;
               self->beat_callback (self->beat_callback_self, t);
@@ -670,7 +670,7 @@ void btt_beat_tracking               (BTT* self)
     //fprintf(stderr, "%i\t%f\t%f\r\n", self->oss_index, self->oss[(self->oss_index + 1023) % 1024], //adaptive_threshold_threshold_value(self->onset_threshold));
     
 /*
-    if((self->cbss[(self->cbss_index+100) % self->oss_length] > 4.76103) && (self->cbss[(self->cbss_index+100 ) % self->oss_length] < 4.76104))
+    if((self->cbss[(self->cbss_index+100) % self->oss_length] > 4.76103f) && (self->cbss[(self->cbss_index+100 ) % self->oss_length] < 4.76104f))
       {
         fprintf(stderr, "--------------------------------\r\n");
         fprintf(stderr, "bpm: %f\r\n", LAG_TO_BPM(self->beat_period_oss_samples));
@@ -697,8 +697,8 @@ void btt_spectral_flux_stft_callback(void* SELF, dft_sample_t* real, int N)
       ++self->metronome_clock;
       if(self->metronome_clock >= self->metronome_lag)
         {
-          unsigned long long t = self->num_audio_samples_processed;
-          t += 0.5 * stft_get_hop(self->spectral_flux_stft);
+          unsigned int t = self->num_audio_samples_processed;
+          t += 0.5f * stft_get_hop(self->spectral_flux_stft);
           self->beat_callback (self->beat_callback_self, t);
           self->metronome_clock = 0;
         }
@@ -724,12 +724,12 @@ void btt_process(BTT* self, dft_sample_t* input, int num_samples)
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_sample_rate                  (BTT* self)
+float     btt_get_sample_rate                  (BTT* self)
 {
   return self->sample_rate;
 }
 
-void      btt_set_sample_rate                  (BTT* self, double sample_rate)
+void      btt_set_sample_rate                  (BTT* self, float sample_rate)
 {
     self->sample_rate = sample_rate;
     self->oss_sample_rate = sample_rate / stft_get_hop(self->spectral_flux_stft);
@@ -752,44 +752,44 @@ int       btt_get_use_amplitude_normalization  (BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_spectral_compression_gamma   (BTT* self, double gamma)
+void      btt_set_spectral_compression_gamma   (BTT* self, float gamma)
 {
   if(gamma < 0) gamma = 0;
   self->spectral_compression_gamma = gamma;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_spectral_compression_gamma   (BTT* self)
+float     btt_get_spectral_compression_gamma   (BTT* self)
 {
   return self->spectral_compression_gamma;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_oss_filter_cutoff            (BTT* self, double Hz)
+void      btt_set_oss_filter_cutoff            (BTT* self, float Hz)
 {
   filter_set_cutoff(self->oss_filter, Hz);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_oss_filter_cutoff            (BTT* self)
+float     btt_get_oss_filter_cutoff            (BTT* self)
 {
   return filter_get_cutoff(self->oss_filter);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_autocorrelation_exponent     (BTT* self, double exponent)
+void      btt_set_autocorrelation_exponent     (BTT* self, float exponent)
 {
   self->autocorrelation_exponent = exponent;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_autocorrelation_exponent     (BTT* self)
+float     btt_get_autocorrelation_exponent     (BTT* self)
 {
   return self->autocorrelation_exponent;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_min_tempo                    (BTT* self, double min_tempo)
+void      btt_set_min_tempo                    (BTT* self, float min_tempo)
 {
   int max_lag = BPM_TO_LAG(min_tempo) + 1;
   if(max_lag < 0) max_lag = 0;
@@ -799,13 +799,13 @@ void      btt_set_min_tempo                    (BTT* self, double min_tempo)
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_min_tempo                    (BTT* self)
+float     btt_get_min_tempo                    (BTT* self)
 {
   return LAG_TO_BPM(self->max_lag);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_max_tempo                    (BTT* self, double max_tempo)
+void      btt_set_max_tempo                    (BTT* self, float max_tempo)
 {
   int min_lag = BPM_TO_LAG(max_tempo);
   if(min_lag < 0) min_lag = 0;
@@ -813,31 +813,31 @@ void      btt_set_max_tempo                    (BTT* self, double max_tempo)
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_max_tempo                    (BTT* self)
+float     btt_get_max_tempo                    (BTT* self)
 {
   return LAG_TO_BPM(self->min_lag);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_onset_threshold              (BTT* self, double num_std_devs)
+void      btt_set_onset_threshold              (BTT* self, float num_std_devs)
 {
   adaptive_threshold_set_threshold(self->onset_threshold, num_std_devs);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_onset_threshold              (BTT* self)
+float     btt_get_onset_threshold              (BTT* self)
 {
   return adaptive_threshold_threshold(self->onset_threshold);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_onset_threshold_min            (BTT* self, double value)
+void      btt_set_onset_threshold_min            (BTT* self, float value)
 {
   adaptive_threshold_set_threshold_min(self->onset_threshold, value);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_onset_threshold_min            (BTT* self)
+float     btt_get_onset_threshold_min            (BTT* self)
 {
   return adaptive_threshold_threshold_min(self->onset_threshold);
 }
@@ -857,23 +857,23 @@ int       btt_get_num_tempo_candidates         (BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_noise_cancellation_threshold (BTT* self, double thresh)
+void      btt_set_noise_cancellation_threshold (BTT* self, float thresh)
 {
   if(thresh > 0) thresh = 0;
-  thresh = pow(10, thresh/20.0);
+  thresh = powf(10, thresh/20.0f);
   self->noise_cancellation_threshold = thresh * stft_get_N (self->spectral_flux_stft);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_noise_cancellation_threshold (BTT* self)
+float     btt_get_noise_cancellation_threshold (BTT* self)
 {
-  double result = self->noise_cancellation_threshold / (double) stft_get_N (self->spectral_flux_stft);
-  result = 20 * log10(result);
+  float result = self->noise_cancellation_threshold / (float) stft_get_N (self->spectral_flux_stft);
+  result = 20 * log10f(result);
   return result;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_cbss_alpha                   (BTT* self, double alpha)
+void      btt_set_cbss_alpha                   (BTT* self, float alpha)
 {
   if(alpha < 0) alpha = 0;
   if(alpha > 1) alpha = 1;
@@ -882,84 +882,84 @@ void      btt_set_cbss_alpha                   (BTT* self, double alpha)
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_cbss_alpha                   (BTT* self)
+float     btt_get_cbss_alpha                   (BTT* self)
 {
   return self->cbss_alpha;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_cbss_eta                     (BTT* self, double eta)
+void      btt_set_cbss_eta                     (BTT* self, float eta)
 {
   if(eta < 0) eta = 0;
   self->cbss_eta = -eta;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_cbss_eta                     (BTT* self)
+float     btt_get_cbss_eta                     (BTT* self)
 {
   return -self->cbss_eta;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_gaussian_tempo_histogram_decay         (BTT* self, double coefficient)
+void      btt_set_gaussian_tempo_histogram_decay         (BTT* self, float coefficient)
 {
   if(coefficient < 0) coefficient = 0;
-  if(coefficient > 0.999999) coefficient = 0.999999;
+  if(coefficient > 0.999999f) coefficient = 0.999999f;
   self->gaussian_tempo_histogram_decay = coefficient;
   self->one_minus_gaussian_tempo_histogram_decay = 1 - coefficient;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_gaussian_tempo_histogram_decay         (BTT* self)
+float     btt_get_gaussian_tempo_histogram_decay         (BTT* self)
 {
   return self->gaussian_tempo_histogram_decay;
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_gaussian_tempo_histogram_width         (BTT* self, double width)
+void      btt_set_gaussian_tempo_histogram_width         (BTT* self, float width)
 {
   if(width < 1) width = 1;
   self->gaussian_tempo_histogram_width = 2 * (width * width);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_gaussian_tempo_histogram_width         (BTT* self)
+float     btt_get_gaussian_tempo_histogram_width         (BTT* self)
 {
-  return sqrt(self->gaussian_tempo_histogram_width/2);
+  return sqrtf(self->gaussian_tempo_histogram_width/2);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_log_gaussian_tempo_weight_mean (BTT* self, double bpm)
+void      btt_set_log_gaussian_tempo_weight_mean (BTT* self, float bpm)
 {
   if(bpm < 1) bpm = 1;
-  double width = btt_get_log_gaussian_tempo_weight_width(self);
+  float width = btt_get_log_gaussian_tempo_weight_width(self);
   
-  self->log_gaussian_tempo_weight_mean = 1.0 / BPM_TO_LAG(bpm);
+  self->log_gaussian_tempo_weight_mean = 1.0f / BPM_TO_LAG(bpm);
   btt_set_log_gaussian_tempo_weight_width(self, width);
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_log_gaussian_tempo_weight_mean (BTT* self)
+float     btt_get_log_gaussian_tempo_weight_mean (BTT* self)
 {
   return LAG_TO_BPM(1 / self->log_gaussian_tempo_weight_mean);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_log_gaussian_tempo_weight_width(BTT* self, double bpm)
+void      btt_set_log_gaussian_tempo_weight_width(BTT* self, float bpm)
 {
   if(bpm <= 0) return;
   
-  double mean = btt_get_log_gaussian_tempo_weight_mean(self);
+  float mean = btt_get_log_gaussian_tempo_weight_mean(self);
   if(mean <= 0) return;
   
-  double denominator = bpm / mean;
+  float denominator = bpm / mean;
   self->log_gaussian_tempo_weight_width = denominator * denominator;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_log_gaussian_tempo_weight_width(BTT* self)
+float     btt_get_log_gaussian_tempo_weight_width(BTT* self)
 {
-  return btt_get_log_gaussian_tempo_weight_mean(self) * sqrt(self->log_gaussian_tempo_weight_width);
+  return btt_get_log_gaussian_tempo_weight_mean(self) * sqrtf(self->log_gaussian_tempo_weight_width);
 }
 
 /*--------------------------------------------------------------------*/
@@ -996,27 +996,27 @@ int       btt_get_predicted_beat_trigger_index   (BTT* self)
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_predicted_beat_gaussian_width  (BTT* self, double width)
+void      btt_set_predicted_beat_gaussian_width  (BTT* self, float width)
 {
   if(width < 1) width = 1;
   self->predicted_beat_gaussian_width = 2 * width * width;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_predicted_beat_gaussian_width  (BTT* self)
+float     btt_get_predicted_beat_gaussian_width  (BTT* self)
 {
-  return sqrt(self->predicted_beat_gaussian_width / 2);
+  return sqrtf(self->predicted_beat_gaussian_width / 2);
 }
 
 /*--------------------------------------------------------------------*/
-void      btt_set_ignore_spurious_beats_duration (BTT* self, double percent_of_tempo)
+void      btt_set_ignore_spurious_beats_duration (BTT* self, float percent_of_tempo)
 {
   if(percent_of_tempo < 0) percent_of_tempo = 0;
-  self->ignore_spurious_beats_duration = percent_of_tempo * 0.01;
+  self->ignore_spurious_beats_duration = percent_of_tempo * 0.01f;
 }
 
 /*--------------------------------------------------------------------*/
-double    btt_get_ignore_spurious_beats_duration (BTT* self)
+float     btt_get_ignore_spurious_beats_duration (BTT* self)
 {
   return self->ignore_spurious_beats_duration * 100;
 }
@@ -1036,8 +1036,8 @@ int       btt_get_analysis_latency_onset_adjustment    (BTT* self)
 /*--------------------------------------------------------------------*/
 void      btt_set_analysis_latency_beat_adjustment(BTT* self, int adjustment)
 {
-  double hop = stft_get_hop(self->spectral_flux_stft);
-  self->analysis_latency_beat_adjustment_coarse = round(adjustment / hop);
+  float hop = stft_get_hop(self->spectral_flux_stft);
+  self->analysis_latency_beat_adjustment_coarse = roundf(adjustment / hop);
   self->analysis_latency_beat_adjustment_fine   = adjustment - hop*self->analysis_latency_beat_adjustment_coarse;
 }
 

@@ -51,7 +51,7 @@ void   rdft_real_inverse_dft    (dft_sample_t* real,  int N);
 void   rdft_2_real_forward_dfts (dft_sample_t* real_1, dft_sample_t* real_2, int N);
 void   rdft_2_real_inverse_dfts (dft_sample_t* real_1, dft_sample_t* real_2, int N);
 
-void   rdft_real_generalized_autocorrelation  (dft_sample_t* real, int N, double exponent);
+void   rdft_real_generalized_autocorrelation  (dft_sample_t* real, int N, float exponent);
 
 void   rdft_rect_to_polar       (dft_sample_t* real,  int N);
 void   rdft_polar_to_rect       (dft_sample_t* real,  int N);
@@ -61,15 +61,15 @@ void   dft_real_convolve        (dft_sample_t* real_1, dft_sample_t* real_2, dft
 void   dft_real_correlate       (dft_sample_t* real_1, dft_sample_t* real_2, dft_sample_t* imag_1, dft_sample_t* imag_2, int N);
 void   dft_real_autocorrelate   (dft_sample_t* real  , dft_sample_t* imag  , int N);
 /* generalized cross-correlation with phase transform */
-void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t* imag, int N, double exponent);
+void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t* imag, int N, float exponent);
 
 void   dft_rect_to_polar        (dft_sample_t* real,   dft_sample_t* imag,   int N);
 void   dft_polar_to_rect        (dft_sample_t* real,   dft_sample_t* imag,   int N);
 void   dft_magnitude_to_db      (dft_sample_t* real,   int N);
 void   dft_normalize_magnitude  (dft_sample_t* real,   int N);
 
-double dft_bin_of_frequency     (double hz, double sample_rate, int N);
-double dft_frequency_of_bin     (double bin, double sample_rate, int N);
+float  dft_bin_of_frequency     (float hz, float sample_rate, int N);
+float  dft_frequency_of_bin     (float bin, float sample_rate, int N);
 int    dft_smallest_power_of_2_at_least_as_great_as(int n);
 
 #if defined(__cplusplus)

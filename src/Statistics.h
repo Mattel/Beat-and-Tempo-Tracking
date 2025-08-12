@@ -26,10 +26,10 @@ OnlineAverage*     online_average_new               ();
 void               online_average_init              (OnlineAverage* self);
 OnlineAverage*     online_average_destroy           (OnlineAverage* self);
 int                online_average_n                 (OnlineAverage* self);
-double             online_average_mean              (OnlineAverage* self);
-double             online_average_variance          (OnlineAverage* self);
-double             online_average_std_dev           (OnlineAverage* self);
-void               online_average_update            (OnlineAverage* self, double     x);
+float              online_average_mean              (OnlineAverage* self);
+float              online_average_variance          (OnlineAverage* self);
+float              online_average_std_dev           (OnlineAverage* self);
+void               online_average_update            (OnlineAverage* self, float     x);
 
 /*--------------------------------------------------------------------*/
 /*-__--__---------_---------------_-------------------------------------
@@ -47,10 +47,10 @@ void               moving_average_init              (MovingAverage* self);
 MovingAverage*     moving_average_destroy           (MovingAverage* self);
 int                moving_average_N                 (MovingAverage* self);
 int                moving_average_n                 (MovingAverage* self);
-double             moving_average_mean              (MovingAverage* self);
-double             moving_average_variance          (MovingAverage* self);
-double             moving_average_std_dev           (MovingAverage* self);
-void               moving_average_update            (MovingAverage* self, double     x);
+float              moving_average_mean              (MovingAverage* self);
+float              moving_average_variance          (MovingAverage* self);
+float              moving_average_std_dev           (MovingAverage* self);
+void               moving_average_update            (MovingAverage* self, float     x);
 
 /*--------------------------------------------------------------------*/
 /*--___-------_-_------------___------------------------_---------------
@@ -67,11 +67,11 @@ OnlineRegression*  online_regression_new            ();
 void               online_regression_init           (OnlineRegression* self);
 OnlineRegression*  online_regression_destroy        (OnlineRegression* self);
 int                online_regression_n              (OnlineRegression* self);
-double             online_regression_covariance     (OnlineRegression* self);
-double             online_regression_slope          (OnlineRegression* self);
-double             online_regression_y_intercept    (OnlineRegression* self);
-double             online_regression_r_squared      (OnlineRegression* self);
-void               online_regression_update         (OnlineRegression* self, double     a_data, double     b_data);
+float              online_regression_covariance     (OnlineRegression* self);
+float              online_regression_slope          (OnlineRegression* self);
+float              online_regression_y_intercept    (OnlineRegression* self);
+float              online_regression_r_squared      (OnlineRegression* self);
+void               online_regression_update         (OnlineRegression* self, float     a_data, float     b_data);
 
 /*--------------------------------------------------------------------*/
 /*----------_-----------_---_-----------_____-_---------------_----_----    _    _ 
@@ -89,20 +89,20 @@ AdaptiveThreshold* adaptive_threshold_new              (unsigned N);
 void               adaptive_threshold_init             (AdaptiveThreshold* self);
 void               adaptive_threshold_clear            (AdaptiveThreshold* self);
 AdaptiveThreshold* adaptive_threshold_destroy          (AdaptiveThreshold* self);
-double             adaptive_threshold_smoothing        (AdaptiveThreshold* self);
-void               adaptive_threshold_set_smoothing    (AdaptiveThreshold* self, double     coefficient);
-double             adaptive_threshold_threshold_value  (AdaptiveThreshold* self); //mean + num std devs * std dev
-double             adaptive_threshold_threshold        (AdaptiveThreshold* self); //num std devs
-void               adaptive_threshold_set_threshold    (AdaptiveThreshold* self, double     std_devs);
-double             adaptive_threshold_threshold_min    (AdaptiveThreshold* self);
-void               adaptive_threshold_set_threshold_min(AdaptiveThreshold* self, double min); //raw value
-double             adaptive_threshold_onset_signal     (AdaptiveThreshold* self);
-double             adaptive_threshold_mean             (AdaptiveThreshold* self);
-double             adaptive_threshold_update           (AdaptiveThreshold* self, double     x);
+float              adaptive_threshold_smoothing        (AdaptiveThreshold* self);
+void               adaptive_threshold_set_smoothing    (AdaptiveThreshold* self, float     coefficient);
+float              adaptive_threshold_threshold_value  (AdaptiveThreshold* self); //mean + num std devs * std dev
+float              adaptive_threshold_threshold        (AdaptiveThreshold* self); //num std devs
+void               adaptive_threshold_set_threshold    (AdaptiveThreshold* self, float     std_devs);
+float              adaptive_threshold_threshold_min    (AdaptiveThreshold* self);
+void               adaptive_threshold_set_threshold_min(AdaptiveThreshold* self, float min); //raw value
+float              adaptive_threshold_onset_signal     (AdaptiveThreshold* self);
+float              adaptive_threshold_mean             (AdaptiveThreshold* self);
+float              adaptive_threshold_update           (AdaptiveThreshold* self, float     x);
 
-double             statistics_random_flat(); //(0, 1]
-double             statistics_random_normal(double     mean, double     std_dev);
-double             statistics_random_cauchy(double peak_location, double half_width_at_half_maximum);
+float              statistics_random_flat(); //(0, 1]
+float              statistics_random_normal(float     mean, float     std_dev);
+float              statistics_random_cauchy(float peak_location, float half_width_at_half_maximum);
 
 #if defined(__cplusplus)
 }
