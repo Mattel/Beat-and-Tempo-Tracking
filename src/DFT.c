@@ -92,7 +92,7 @@ void dft_raw_inverse_dft(dft_sample_t* real, dft_sample_t* imag, int N)
       num_butterflies <<= 1;
     }
  
-  tempr = 1.0/N;
+  tempr = 1.0f/N;
   for(omega=0; omega<N; omega++)
     {
       r[omega] *= tempr;
@@ -144,10 +144,10 @@ void dft_real_forward_dft(dft_sample_t* real, dft_sample_t* imag, int N)
   for(i=1; i<N_over_2; i++)
     {
       i_pi_over_N = i * pi_over_N;
-      ar = 0.5 * (1-fastsin(i_pi_over_N));
-      ai = 0.5 * ( -fastcos(i_pi_over_N));
-      br = 0.5 * (1+fastsin(i_pi_over_N));
-      bi = 0.5 * (  fastcos(i_pi_over_N));
+      ar = 0.5f * (1-fastsin(i_pi_over_N));
+      ai = 0.5f * ( -fastcos(i_pi_over_N));
+      br = 0.5f * (1+fastsin(i_pi_over_N));
+      bi = 0.5f * (  fastcos(i_pi_over_N));
       r1 = real[i] * ar - imag[i] * ai + real[N_over_2-i] * br + imag[N_over_2-i] * bi;
       i1 = imag[i] * ar + real[i] * ai + real[N_over_2-i] * bi - imag[N_over_2-i] * br;
       real[N-i] = r1;
@@ -156,10 +156,10 @@ void dft_real_forward_dft(dft_sample_t* real, dft_sample_t* imag, int N)
 
   real[N_over_2] = real[0] - imag[0];
   imag[N_over_2] = 0;
-  ai = -0.5;
-  ar = 0.5;
-  bi = 0.5;
-  br = 0.5;
+  ai = -0.5f;
+  ar = 0.5f;
+  bi = 0.5f;
+  br = 0.5f;
   r1 = real[0] * ar - imag[0] * ai + real[0] * br + imag[0] * bi;
   i1 = imag[0] * ar + real[0] * ai + real[0] * bi - imag[0] * br;
   real[0] = r1;
@@ -192,10 +192,10 @@ void dft_real_inverse_dft(dft_sample_t* real, dft_sample_t* imag, int N)
   for(i=0; i<N_over_2; i++)
     {
       i_pi_over_N = i * pi_over_N;
-      ar = 0.5 * (1-fastsin(i_pi_over_N));
-      ai = 0.5 * (  fastcos(i_pi_over_N));
-      br = 0.5 * (1+fastsin(i_pi_over_N));
-      bi = 0.5 * (  -fastcos(i_pi_over_N));
+      ar = 0.5f * (1-fastsin(i_pi_over_N));
+      ai = 0.5f * (  fastcos(i_pi_over_N));
+      br = 0.5f * (1+fastsin(i_pi_over_N));
+      bi = 0.5f * (  -fastcos(i_pi_over_N));
       
       i_plus_N_over_2 = i + N_over_2;
       
@@ -244,10 +244,10 @@ void dft_2_real_forward_dfts(dft_sample_t* real_1, dft_sample_t* real_2, dft_sam
   
   for(i=1; i<N_over_2; i++)
     {
-      r1 = 0.5 * (real[i] + real[N-i]);
-      i1 = 0.5 * (imag[i] - imag[N-i]);
-      r2 = 0.5 * (imag[i] + imag[N-i]);
-      i2 = -0.5 * (real[i] - real[N-i]);
+      r1 = 0.5f * (real[i] + real[N-i]);
+      i1 = 0.5f * (imag[i] - imag[N-i]);
+      r2 = 0.5f * (imag[i] + imag[N-i]);
+      i2 = -0.5f * (real[i] - real[N-i]);
       real_1[i] = r1;
       imag_1[i] = i1;
       real_2[i] = r2;
@@ -484,10 +484,10 @@ void rdft_2_real_forward_dfts(dft_sample_t* real_1, dft_sample_t* real_2, int N)
   
   for(i=1; i<N_over_2; i++)
     {
-      r1 = 0.5 * (real[i] + real[N-i]);
-      i1 = 0.5 * (imag[i] - imag[N-i]);
-      r2 = 0.5 * (imag[i] + imag[N-i]);
-      i2 = -0.5 * (real[i] - real[N-i]);
+      r1 = 0.5f * (real[i] + real[N-i]);
+      i1 = 0.5f * (imag[i] - imag[N-i]);
+      r2 = 0.5f * (imag[i] + imag[N-i]);
+      i2 = -0.5f * (real[i] - real[N-i]);
       real_1[i]   = r1;
       real_1[N-i] = i1;
       real_2[i]   = r2;
@@ -538,8 +538,8 @@ void   rdft_rect_to_polar       (dft_sample_t* real,  int N)
   while(N-- > 1)
     {
       temp = *real;
-      *real = hypot(*real, *imag);
-      *imag = atan2(*imag, temp);
+      *real = hypotf(*real, *imag);
+      *imag = atan2f(*imag, temp);
       ++real, --imag;
     }
 }
@@ -555,8 +555,8 @@ void   rdft_polar_to_rect       (dft_sample_t* real,  int N)
   while(N-- > 1)
     {
       temp = *real;
-      *real = *real * cos(*imag);
-      *imag = temp  * sin(*imag);
+      *real = *real * cosf(*imag);
+      *imag = temp  * sinf(*imag);
       ++real, --imag;
     }
 }
@@ -622,7 +622,7 @@ void   dft_real_autocorrelate  (dft_sample_t* real, dft_sample_t* imag, int N)
 }
 
 /*-----------------------------------------------------------------------*/
-void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t* imag, int N, double exponent)
+void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t* imag, int N, float exponent)
 {
   int i;
   int n_over_2 = N >> 1;
@@ -632,7 +632,7 @@ void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t
   
   for(i=0; i<n_over_2; i++)
     {
-      real[i] = pow(real[i], exponent);
+      real[i] = powf(real[i], exponent);
       imag[i] = 0;
     }
   
@@ -640,7 +640,7 @@ void   dft_real_generalized_autocorrelation  (dft_sample_t* real  , dft_sample_t
 }
 
 /*-----------------------------------------------------------------------*/
-void   rdft_real_generalized_autocorrelation  (dft_sample_t* real, int N, double exponent)
+void   rdft_real_generalized_autocorrelation  (dft_sample_t* real, int N, float exponent)
 {
   int i;
   int n_over_2 = N >> 1;
@@ -648,13 +648,13 @@ void   rdft_real_generalized_autocorrelation  (dft_sample_t* real, int N, double
   rdft_real_forward_dft(real, N);
   rdft_rect_to_polar(real, N);
   
-  real[0] = pow(real[0], exponent);
+  real[0] = powf(real[0], exponent);
   for(i=1; i<n_over_2; i++)
     {
-      real[i] = pow(real[i], exponent);
+      real[i] = powf(real[i], exponent);
       real[N-i-1] = 0;
     }
-  real[n_over_2] = pow(real[n_over_2], exponent);
+  real[n_over_2] = powf(real[n_over_2], exponent);
   
   //it seems like polar to rect should be performed here but the Percival Tzanetakis paper says not in Eq 3.
   //further testing should probably be done
@@ -719,8 +719,8 @@ void dft_rect_to_polar(dft_sample_t* real, dft_sample_t* imag, int N)
   while(N-- > 0)
     {
       temp = *real;
-      *real = hypot(*real, *imag);
-      *imag = atan2(*imag, temp);
+      *real = hypotf(*real, *imag);
+      *imag = atan2f(*imag, temp);
       ++real, ++imag;    
     }
 }
@@ -733,8 +733,8 @@ void dft_polar_to_rect(dft_sample_t* real, dft_sample_t* imag, int N)
   while(N-- > 0)
     {
       temp = *real;
-      *real = *real * cos(*imag);
-      *imag = temp  * sin(*imag);
+      *real = *real * cosf(*imag);
+      *imag = temp  * sinf(*imag);
       ++real, ++imag;
     }
 }
@@ -749,7 +749,7 @@ void   dft_magnitude_to_db     (dft_sample_t* real,   int N)
       if(*real == 0)
         *real = FLT_MIN;
       else
-        *real = 20 * log10(*real);
+        *real = 20 * log10f(*real);
       ++real;
     }
 }
@@ -778,15 +778,15 @@ void   dft_normalize_magnitude (dft_sample_t* real,   int N)
 }
 
 /*-----------------------------------------------------------------------*/
-double dft_frequency_of_bin    (double bin, double sample_rate, int N)
+float  dft_frequency_of_bin    (float bin, float sample_rate, int N)
 {
   return bin * (sample_rate / N);
 }
 
 /*-----------------------------------------------------------------------*/
-double dft_bin_of_frequency    (double hz, double sample_rate, int N)
+float  dft_bin_of_frequency    (float hz, float sample_rate, int N)
 {
-  return hz * ((double)N / (double)sample_rate);
+  return hz * ((float)N / (float)sample_rate);
 }
 
 /*-----------------------------------------------------------------------*/
@@ -805,16 +805,16 @@ void dft_init_blackman_window(dft_sample_t* window, int N)
   //for now this is only initialization
   //so it doesn't really matter
   int i;
-  long double phase = 0;
-  long double phase_increment = 2*M_PI / (long double)N;
-  double a = 0;
-  double a0 = (1-a)/2.0;
-  double a1 = 1/2.0;
-  double a2 = a/2.0;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  float a = 0;
+  float a0 = (1-a)/2.0f;
+  float a1 = 1/2.0f;
+  float a2 = a/2.0f;
   
   for(i=0; i<N; i++)
     {
-      *window++ = a0 - a1*cos(phase) + a2*cos(2*phase);
+      *window++ = a0 - a1*cosf(phase) + a2*cosf(2*phase);
       phase += phase_increment;
     }  
 }
@@ -823,11 +823,11 @@ void dft_init_blackman_window(dft_sample_t* window, int N)
 void dft_init_hann_window(dft_sample_t* window, int N)
 {
   int i;
-  long double phase = 0;
-  long double phase_increment = 2*M_PI / (long double)N;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
   for(i=0; i<N; i++)
     {
-      *window++ = 0.5 * (1-cos(phase));
+      *window++ = 0.5f * (1-cosf(phase));
       phase += phase_increment;
     }  
 }
@@ -836,11 +836,11 @@ void dft_init_hann_window(dft_sample_t* window, int N)
 void dft_init_hamming_window(dft_sample_t* window, int N)
 {
   int i;
-  long double phase = 0;
-  long double phase_increment = 2*M_PI / (long double)N;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
   for(i=0; i<N; i++)
     {
-      *window++ = 0.54 - 0.46 * cos(phase);
+      *window++ = 0.54f - 0.46f * cosf(phase);
       phase += phase_increment;
     }  
 }
@@ -849,9 +849,9 @@ void dft_init_hamming_window(dft_sample_t* window, int N)
 void   dft_init_half_sine_window(dft_sample_t* window, int N)
 {
   int i;
-  long double coeff = M_PI / (long double)N;
+  float coeff = M_PI / (float)N;
   for(i=0; i<N; i++)
-    *window++ = sin(coeff * (i+0.5));
+    *window++ = sinf(coeff * (i+0.5f));
 }
 
 /*-----------------------------------------------------------------------*/

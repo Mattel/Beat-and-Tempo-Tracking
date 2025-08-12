@@ -28,9 +28,9 @@ const extern float sinTable[SIN_NUM_SAMPLES];
 /*
 #define  SIN_TWO_PI             (2 * M_PI)
 #define  SIN_PI                 (M_PI)
-#define  SIN_HALF_PI            (0.5 * M_PI)
-#define  SIN_QUARTER_PI         (0.25 * M_PI)
-#define  fastsin_t              double
+#define  SIN_HALF_PI            (0.5f * M_PI)
+#define  SIN_QUARTER_PI         (0.25f * M_PI)
+#define  fastsin_t              float
 
 float fastsin  (fastsin_t angle);
 float fastcos  (fastsin_t angle);

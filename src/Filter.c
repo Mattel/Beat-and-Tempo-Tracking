@@ -2,7 +2,7 @@
 #include "math.h"
 #include <stdlib.h>
 
-#define TWO_PI (M_PI * 2.0)
+#define TWO_PI (M_PI * 2.0f)
 
 /*-------------------------------------------------*/
 void filter_init_lowpass_coeffs  (Filter* self);
@@ -197,7 +197,7 @@ filter_window_t filter_get_window_type(Filter* self)
 void filter_init_lowpass_coeffs(Filter* self)
 {
   int i, n=self->order+1;
-  float m_over_2 = self->order / 2.0;
+  float m_over_2 = self->order / 2.0f;
   float f_t = self->cutoff / self->sample_rate;
   float two_pi_f_t = TWO_PI * f_t;  
   float i_minus_m_over_2;
@@ -212,7 +212,7 @@ void filter_init_lowpass_coeffs(Filter* self)
           temp /= M_PI * i_minus_m_over_2;
         }
       else
-        temp = 2.0 * f_t;
+        temp = 2.0f * f_t;
 
       temp *= self->window[i];
       self->coeffs[i] = temp;
@@ -227,7 +227,7 @@ void filter_init_highpass_coeffs(Filter* self)
   /* and could be serviced by the same function            */
 
   int i, n=self->order+1;
-  float m_over_2 = self->order / 2.0;
+  float m_over_2 = self->order / 2.0f;
   float f_t = self->cutoff / self->sample_rate;
   float two_pi_f_t = TWO_PI * f_t;  
   float i_minus_m_over_2;
@@ -243,7 +243,7 @@ void filter_init_highpass_coeffs(Filter* self)
           temp *= -1;
         }
       else
-        temp = 1 - (2.0 * f_t);
+        temp = 1 - (2.0f * f_t);
 
       temp *= self->window[i];
       self->coeffs[i] = temp;
@@ -254,7 +254,7 @@ void filter_init_highpass_coeffs(Filter* self)
 void filter_init_bandpass_coeffs(Filter* self)
 {
   int i, n=self->order+1;
-  float m_over_2 = self->order / 2.0;
+  float m_over_2 = self->order / 2.0f;
   float f_t = self->cutoff / self->sample_rate;
   float two_pi_f_t = TWO_PI * f_t;
   float i_minus_m_over_2;
@@ -270,7 +270,7 @@ void filter_init_bandpass_coeffs(Filter* self)
           temp *= -1;
         }
       else
-        temp = 1 - (2.0 * f_t);
+        temp = 1 - (2.0f * f_t);
 
       temp *= self->window[i];
       self->coeffs[i] = temp;
@@ -295,12 +295,12 @@ void filter_init_rect_window(Filter* self)
 void filter_init_hann_window(Filter* self)
 {
   int i, n = self->order + 1;
-  double phase = 0;
-  double phase_increment = TWO_PI / (double)self->order;
+  float phase = 0;
+  float phase_increment = TWO_PI / (float)self->order;
 
   for(i=0; i<n; i++)
     {
-      self->window[i] = 0.5 * (1-cos(phase));
+      self->window[i] = 0.5f * (1-cos(phase));
       phase += phase_increment;
     }
 }
@@ -309,11 +309,11 @@ void filter_init_hann_window(Filter* self)
 void filter_init_hamming_window(Filter* self)
 {
   int i, n = self->order + 1;
-  double phase = 0;
-  double phase_increment = TWO_PI / (double)self->order;
+  float phase = 0;
+  float phase_increment = TWO_PI / (float)self->order;
   for(i=0; i<n; i++)
     {
-      self->window[i] = 0.54 - 0.46 * cos(phase);
+      self->window[i] = 0.54f - 0.46f * cos(phase);
       phase += phase_increment;
     }  
 }
@@ -322,12 +322,12 @@ void filter_init_hamming_window(Filter* self)
 void filter_init_blackmann_window(Filter* self)
 {
   int i, n = self->order + 1;
-  double phase = 0;
-  double phase_increment = TWO_PI / (double)self->order;
-  double a = 0;
-  double a0 = (1-a)/2.0;
-  double a1 = 1/2.0;
-  double a2 = a/2.0;
+  float phase = 0;
+  float phase_increment = TWO_PI / (float)self->order;
+  float a = 0;
+  float a0 = (1-a)/2.0f;
+  float a1 = 1/2.0f;
+  float a2 = a/2.0f;
   
   for(i=0; i<n; i++)
     {
