@@ -15,18 +15,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#ifndef STATISTICS_FIXED_DEFAULT
-#  ifdef BTT_USE_FIXED_POINT
-#    define STATISTICS_FIXED_DEFAULT 1
-#  else
-#    define STATISTICS_FIXED_DEFAULT 0
-#  endif
-#endif
-
-#ifndef STATISTICS_DEFAULT_HEADROOM_BITS
-#  define STATISTICS_DEFAULT_HEADROOM_BITS 1
-#endif
-
 /*--------------------------------------------------------------------*/
 /*--___-------_-_-------------------------------------------------------
    / _ \ _ _ | (_)_ _  ___    /_\__ _____ _ _ __ _ __ _ ___ 
@@ -553,6 +541,12 @@ void adaptive_threshold_set_smoothing(AdaptiveThreshold* self, float     coeffic
 {
   coefficient = (coefficient > 1) ? 1 : ((coefficient < 0) ? 0 : coefficient);
   self->smoothing = coefficient;
+}
+
+/*--------------------------------------------------------------------*/
+void adaptive_threshold_use_fixed_point(AdaptiveThreshold* self, int use_fixed_point, int headroom_bits)
+{
+  moving_average_use_fixed_point(self->avg, use_fixed_point, headroom_bits);
 }
 
 /*--------------------------------------------------------------------*/

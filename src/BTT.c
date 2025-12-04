@@ -40,6 +40,22 @@
 #define LAG_TO_BPM(lag) (60 * self->oss_sample_rate / ((float)(lag)))
 #define MODULO(x, N)    (((x) % (N) + (N)) % (N))
 
+#ifndef BTT_FIXED_DEFAULT
+#  ifdef BTT_USE_FIXED_POINT
+#    define BTT_FIXED_DEFAULT 1
+#  else
+#    define BTT_FIXED_DEFAULT 0
+#  endif
+#endif
+
+#ifndef BTT_FILTER_HEADROOM_BITS
+#  define BTT_FILTER_HEADROOM_BITS FILTER_DEFAULT_HEADROOM_BITS
+#endif
+
+#ifndef BTT_STATISTICS_HEADROOM_BITS
+#  define BTT_STATISTICS_HEADROOM_BITS STATISTICS_DEFAULT_HEADROOM_BITS
+#endif
+
 void btt_spectral_flux_stft_callback (void*   SELF, dft_sample_t* real, int N);
 void btt_onset_tracking              (BTT* self, dft_sample_t* real, int N);
 
@@ -54,6 +70,9 @@ struct Opaque_BTT_Struct
   int                should_normalize_amplitude;
   float              spectral_compression_gamma;
   float              noise_cancellation_threshold;
+  int                use_fixed_point;
+  int                filter_headroom_bits;
+  int                statistics_headroom_bits;
   AdaptiveThreshold* onset_threshold;
   float              sample_rate;
   float              oss_sample_rate;
@@ -177,6 +196,12 @@ BTT* btt_new(int spectral_flux_stft_len, int spectral_flux_stft_overlap, int oss
       self->count_in_average = online_average_new();
       if(self->count_in_average == NULL) return btt_destroy(self);
 
+      self->use_fixed_point         = BTT_FIXED_DEFAULT;
+      self->filter_headroom_bits    = BTT_FILTER_HEADROOM_BITS;
+      self->statistics_headroom_bits = BTT_STATISTICS_HEADROOM_BITS;
+      btt_set_fixed_point_headroom(self, self->filter_headroom_bits, self->statistics_headroom_bits);
+      btt_set_use_fixed_point(self, self->use_fixed_point);
+
       btt_set_analysis_latency_onset_adjustment(self, analysis_latency_onset_adjustment);
       btt_set_analysis_latency_beat_adjustment (self, analysis_latency_beat_adjustment );
     
@@ -260,6 +285,7 @@ void      btt_clear(BTT* self)
   self->oss_index                   = 0;
   self->count_in_count              = 0;
   online_average_init (self->count_in_average);
+  online_average_use_fixed_point(self->count_in_average, self->use_fixed_point, self->statistics_headroom_bits);
   memset(self->oss, 0, self->oss_length * sizeof(*self->oss));
   btt_init_tempo(self, 0);
 }
@@ -372,7 +398,16 @@ void btt_onset_tracking              (BTT* self, dft_sample_t* real, int N)
     }
   
   //10HZ low-pass filter flux to obtaion OSS, delays oss by (filter_order-1) / 2 oss samples
-  filter_process_data(self->oss_filter, &flux, 1);
+  if(self->use_fixed_point)
+    {
+      q31_t flux_q31 = q31_from_float(flux);
+      filter_process_data_q31(self->oss_filter, &flux_q31, 1);
+      flux = q31_to_float(flux_q31);
+    }
+  else
+    {
+      filter_process_data(self->oss_filter, &flux, 1);
+    }
   self->oss[self->oss_index] = flux;
   ++self->oss_index; self->oss_index %= self->oss_length;
 
@@ -397,6 +432,7 @@ void btt_onset_tracking              (BTT* self, dft_sample_t* real, int N)
                 if((delta > self->max_lag) || (delta < self->min_lag))
                   {
                     online_average_init (self->count_in_average);
+                    online_average_use_fixed_point(self->count_in_average, self->use_fixed_point, self->statistics_headroom_bits);
                     self->count_in_count = 1;
                   }
                 else
@@ -490,13 +526,14 @@ void btt_tempo_tracking              (BTT* self)
   float pulse_values[]        = BTT_DEFAULT_XCORR_PULSE_VALUES;
   
   //7% realtime spent in this loop (dft-free cross correlation)
-  for(i=0; i<self->num_tempo_candidates; i++)
-    {
-      int phi;
-      score_max[i] = 0;
-      online_average_init(self->tempo_score_variance);
-      for(phi=0; phi<candidate_tempo_lags[i]; phi++)
+      for(i=0; i<self->num_tempo_candidates; i++)
         {
+          int phi;
+          score_max[i] = 0;
+          online_average_init(self->tempo_score_variance);
+          online_average_use_fixed_point(self->tempo_score_variance, self->use_fixed_point, self->statistics_headroom_bits);
+          for(phi=0; phi<candidate_tempo_lags[i]; phi++)
+            {
           int pulse;
           float x_corr = 0;
           for(pulse=0; pulse<num_pulses; pulse++)
@@ -734,6 +771,47 @@ void      btt_set_sample_rate                  (BTT* self, float sample_rate)
     self->sample_rate = sample_rate;
     self->oss_sample_rate = sample_rate / stft_get_hop(self->spectral_flux_stft);
     filter_set_sample_rate(self->oss_filter, self->oss_sample_rate);
+}
+
+/*--------------------------------------------------------------------*/
+void      btt_set_use_fixed_point              (BTT* self, int use_fixed_point)
+{
+  self->use_fixed_point = (use_fixed_point != 0);
+  stft_set_use_fixed_point(self->spectral_flux_stft, self->use_fixed_point);
+  filter_set_use_fixed_point(self->oss_filter, self->use_fixed_point);
+  adaptive_threshold_use_fixed_point(self->onset_threshold, self->use_fixed_point, self->statistics_headroom_bits);
+  online_average_use_fixed_point(self->tempo_score_variance, self->use_fixed_point, self->statistics_headroom_bits);
+  online_average_use_fixed_point(self->count_in_average, self->use_fixed_point, self->statistics_headroom_bits);
+}
+
+/*--------------------------------------------------------------------*/
+int       btt_get_use_fixed_point              (BTT* self)
+{
+  return self->use_fixed_point;
+}
+
+/*--------------------------------------------------------------------*/
+void      btt_set_fixed_point_headroom         (BTT* self, int filter_bits, int statistics_bits)
+{
+  if(filter_bits < 0) filter_bits = 0;
+  if(filter_bits > 8) filter_bits = 8;
+  if(statistics_bits < 0) statistics_bits = 0;
+  if(statistics_bits > 16) statistics_bits = 16;
+  self->filter_headroom_bits     = filter_bits;
+  self->statistics_headroom_bits = statistics_bits;
+  filter_set_headroom_bits(self->oss_filter, self->filter_headroom_bits);
+  adaptive_threshold_use_fixed_point(self->onset_threshold, self->use_fixed_point, self->statistics_headroom_bits);
+  online_average_use_fixed_point(self->tempo_score_variance, self->use_fixed_point, self->statistics_headroom_bits);
+  online_average_use_fixed_point(self->count_in_average, self->use_fixed_point, self->statistics_headroom_bits);
+}
+
+/*--------------------------------------------------------------------*/
+void      btt_get_fixed_point_headroom         (BTT* self, int* filter_bits, int* statistics_bits)
+{
+  if(filter_bits != NULL)
+    *filter_bits = self->filter_headroom_bits;
+  if(statistics_bits != NULL)
+    *statistics_bits = self->statistics_headroom_bits;
 }
 
 
@@ -1080,6 +1158,7 @@ void                      btt_set_tracking_mode            (BTT* self, btt_track
       self->tracking_mode_before_count_in = self->tracking_mode;
       self->count_in_count              = 0;
       online_average_init (self->count_in_average);
+      online_average_use_fixed_point(self->count_in_average, self->use_fixed_point, self->statistics_headroom_bits);
     }
   
   self->tracking_mode = mode;

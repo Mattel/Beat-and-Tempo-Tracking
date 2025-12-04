@@ -15,6 +15,18 @@ extern "C"{
 
 #include "fixed_math.h"
 
+#ifndef STATISTICS_FIXED_DEFAULT
+#  ifdef BTT_USE_FIXED_POINT
+#    define STATISTICS_FIXED_DEFAULT 1
+#  else
+#    define STATISTICS_FIXED_DEFAULT 0
+#  endif
+#endif
+
+#ifndef STATISTICS_DEFAULT_HEADROOM_BITS
+#  define STATISTICS_DEFAULT_HEADROOM_BITS 1
+#endif
+
 /*--------------------------------------------------------------------*/
 /*--___-------_-_--------------_----------------------------------------
    / _ \ _ _ | (_)_ _  ___    /_\__ _____ _ _ __ _ __ _ ___ 
@@ -97,6 +109,7 @@ void               adaptive_threshold_clear            (AdaptiveThreshold* self)
 AdaptiveThreshold* adaptive_threshold_destroy          (AdaptiveThreshold* self);
 float              adaptive_threshold_smoothing        (AdaptiveThreshold* self);
 void               adaptive_threshold_set_smoothing    (AdaptiveThreshold* self, float     coefficient);
+void               adaptive_threshold_use_fixed_point  (AdaptiveThreshold* self, int use_fixed_point, int headroom_bits);
 float              adaptive_threshold_threshold_value  (AdaptiveThreshold* self); //mean + num std devs * std dev
 float              adaptive_threshold_threshold        (AdaptiveThreshold* self); //num std devs
 void               adaptive_threshold_set_threshold    (AdaptiveThreshold* self, float     std_devs);

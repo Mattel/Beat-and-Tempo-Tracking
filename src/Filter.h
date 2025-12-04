@@ -6,6 +6,18 @@ extern "C"{
 
 #include "fixed_math.h"
 
+#ifndef FILTER_FIXED_DEFAULT
+#  ifdef BTT_USE_FIXED_POINT
+#    define FILTER_FIXED_DEFAULT 1
+#  else
+#    define FILTER_FIXED_DEFAULT 0
+#  endif
+#endif
+
+#ifndef FILTER_DEFAULT_HEADROOM_BITS
+#  define FILTER_DEFAULT_HEADROOM_BITS 1
+#endif
+
 typedef struct opaque_filter_struct Filter;
 
 typedef enum filter_type_enum

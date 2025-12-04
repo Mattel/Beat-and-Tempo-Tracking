@@ -5,18 +5,6 @@
 #define M_PI 3.14159265358979323846
 #endif
 
-#ifndef FILTER_FIXED_DEFAULT
-#  ifdef BTT_USE_FIXED_POINT
-#    define FILTER_FIXED_DEFAULT 1
-#  else
-#    define FILTER_FIXED_DEFAULT 0
-#  endif
-#endif
-
-#ifndef FILTER_DEFAULT_HEADROOM_BITS
-#  define FILTER_DEFAULT_HEADROOM_BITS 1
-#endif
-
 #define TWO_PI (M_PI * 2.0f)
 
 /*-------------------------------------------------*/
