@@ -31,6 +31,7 @@
 #include "Statistics.h"
 
 #include <stdlib.h> //calloc
+#include <stdint.h>
 #include <math.h>   //log
 #include <string.h> //memset
 
@@ -77,6 +78,8 @@ struct Opaque_BTT_Struct
   float              sample_rate;
   float              oss_sample_rate;
   Filter*            oss_filter;
+  dft_sample_t*      pcm_buffer;
+  int                pcm_buffer_len;
   dft_sample_t*      oss;
   int                oss_index;
   int                oss_length;
@@ -228,12 +231,15 @@ BTT* btt_destroy(BTT* self)
     
       if(self->gaussian_tempo_histogram != NULL)
         free(self->gaussian_tempo_histogram);
-    
+
       if(self->cbss != NULL)
         free(self->cbss);
 
       if(self->predicted_beat_signal != NULL)
         free(self->predicted_beat_signal);
+
+      if(self->pcm_buffer != NULL)
+        free(self->pcm_buffer);
     
       stft_destroy(self->spectral_flux_stft);
       filter_destroy(self->oss_filter);
@@ -758,6 +764,27 @@ void btt_process(BTT* self, dft_sample_t* input, int num_samples)
 {
   stft_process(self->spectral_flux_stft, input, num_samples, btt_spectral_flux_stft_callback, self);
   self->num_audio_samples_processed += num_samples;
+}
+
+/*--------------------------------------------------------------------*/
+void btt_process_pcm16(BTT* self, const int16_t* input, int num_samples)
+{
+  if((input == NULL) || (num_samples <= 0))
+    return;
+
+  if(self->pcm_buffer_len < num_samples)
+    {
+      dft_sample_t* new_buffer = realloc(self->pcm_buffer, num_samples * sizeof(*new_buffer));
+      if(new_buffer == NULL)
+        return;
+      self->pcm_buffer = new_buffer;
+      self->pcm_buffer_len = num_samples;
+    }
+
+  for(int i=0; i<num_samples; ++i)
+    self->pcm_buffer[i] = q31_to_float(q31_from_pcm16(input[i]));
+
+  btt_process(self, self->pcm_buffer, num_samples);
 }
 
 /*--------------------------------------------------------------------*/

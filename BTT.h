@@ -33,6 +33,7 @@ extern "C"{
 #endif   //(__cplusplus)
 
 #include "src/DFT.h"
+#include <stdint.h>
 
 /*--------------------------------------------------------------------*/
 typedef enum
@@ -104,6 +105,7 @@ BTT*      btt_new                                (int spectral_flux_stft_len, in
 BTT*      btt_new_default                        ();
 BTT*      btt_destroy                            (BTT* self);
 void      btt_process                            (BTT* self, dft_sample_t* input, int num_samples);
+void      btt_process_pcm16                      (BTT* self, const int16_t* input, int num_samples);
 float     btt_get_sample_rate                    (BTT* self);
 void      btt_set_sample_rate                    (BTT* self, float sample_rate);
 void      btt_init                               (BTT* self);
