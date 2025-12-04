@@ -22,6 +22,8 @@ void    stft_process (STFT* self, dft_sample_t* real_input, int len, stft_onproc
 int     stft_get_N (STFT* self);
 int     stft_get_overlap (STFT* self);
 int     stft_get_hop     (STFT* self);
+void    stft_set_use_fixed_point(STFT* self, int use_fixed_point);
+int     stft_get_use_fixed_point(STFT* self);
 
 /*--------------------------------------------------------------------*/
 typedef struct Opaque_TWO_STFTS_Struct TWO_STFTS;

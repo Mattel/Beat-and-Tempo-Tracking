@@ -6,6 +6,9 @@ extern "C" {
 #endif                      
 
 #include <stdint.h>
+#include <stdbool.h>
+
+#include "fixed_math.h"
 
 
 #define  SIN_NUM_SAMPLES        4096
@@ -15,13 +18,21 @@ extern "C" {
 #define  SIN_QUARTER_PI         0x20000000
 #define  fastsin_t              uint32_t
 
-float fastsin  (fastsin_t angle);
-float fastcos  (fastsin_t angle);
+float fastsin      (fastsin_t angle);
+float fastcos      (fastsin_t angle);
+
+q31_t fastsin_q31  (fastsin_t angle);
+q31_t fastcos_q31  (fastsin_t angle);
+const q31_t* fastsin_q31_table(void);
 
 #define fastsin(angle) (*(sinTable + ((angle) >> 20)))
 #define fastcos(angle) (*(sinTable + (((angle) + SIN_HALF_PI) >> 20)))
 
-const extern float sinTable[SIN_NUM_SAMPLES];
+#define fastsin_q31_cached(angle) (*(sinTableQ31 + ((angle) >> 20)))
+#define fastcos_q31_cached(angle) (*(sinTableQ31 + (((angle) + SIN_HALF_PI) >> 20)))
+
+extern const float sinTable[SIN_NUM_SAMPLES];
+extern q31_t sinTableQ31[SIN_NUM_SAMPLES];
 
 
 //slowsin

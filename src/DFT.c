@@ -11,6 +11,28 @@
 
 #include <math.h>
 #include <float.h>
+#include <stddef.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#ifdef BTT_USE_ESP_DSP
+#include <alloca.h>
+#ifndef BTT_DSP_FFT2R_Q32
+#define BTT_DSP_FFT2R_Q32 dsps_fft2r_q32
+#endif
+#ifndef BTT_DSP_BITREV2R_Q32
+#define BTT_DSP_BITREV2R_Q32 dsps_bit_rev2r_q32
+#endif
+#ifndef BTT_DSP_CPLX2REAL_Q32
+#define BTT_DSP_CPLX2REAL_Q32 dsps_cplx2real_q32
+#endif
+extern void BTT_DSP_FFT2R_Q32(q31_t* data, int N);
+extern void BTT_DSP_BITREV2R_Q32(q31_t* data, int N);
+extern void BTT_DSP_CPLX2REAL_Q32(q31_t* data, int N);
+#ifdef BTT_DSP_FFT2R_INV_Q32
+extern void BTT_DSP_FFT2R_INV_Q32(q31_t* data, int N);
+#endif
+#endif
 
 /*-----------------------------------------------------------------------*/
 //produces output in bit-reversed order (Decimation in Frequency)
@@ -712,6 +734,194 @@ void dft_bit_reverse_indices(dft_sample_t* real, dft_sample_t* imag, int N)
 }
 
 /*-----------------------------------------------------------------------*/
+void dft_bit_reverse_indices_q31(q31_t* real, q31_t* imag, int N)
+{
+  q31_t temp;
+  int N_over_2 = N >> 1;
+  unsigned n, bit, rev;
+  unsigned n_reversed = N_over_2;
+
+  for(n=1; n<N; n++)
+    {
+      if(n_reversed > n)
+        {
+          temp             = real[n]         ;
+          real[n]          = real[n_reversed];
+          real[n_reversed] = temp            ;
+          temp             = imag[n]         ;
+          imag[n]          = imag[n_reversed];
+          imag[n_reversed] = temp            ;
+        }
+      bit = ~n & (n + 1);
+      rev = N_over_2 / bit;
+      n_reversed ^= (N - 1) & ~(rev - 1);
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+static inline q31_t q31_mul_norm(q31_t a, q31_t b)
+{
+  /* Saturated multiply with post-scale to preserve headroom during butterflies. */
+  return q31_shift(q31_mul(a, b), -1);
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_raw_forward_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  fastsin_t two_pi_over_N = (fastsin_t)(SIN_TWO_PI / N), omega_two_pi_over_n;
+  int sub_transform, butterfly;
+  int num_sub_transforms = 1, num_butterflies = N/2, omega;
+  q31_t wr, wi, *r=real, *i=imag, tempr, tempi;
+  int top_index = 0, bottom_index;
+
+  while(num_sub_transforms < N)
+    {
+      top_index = 0;
+      for(sub_transform=0; sub_transform<num_sub_transforms; sub_transform++)
+        {
+          omega = 0;
+          for(butterfly=0; butterfly<num_butterflies; butterfly++)
+            {
+              bottom_index        = num_butterflies + top_index;
+              omega_two_pi_over_n = omega * two_pi_over_N;
+              wr                  =  fastcos_q31(omega_two_pi_over_n);
+              wi                  = -fastsin_q31(omega_two_pi_over_n);
+
+              q31_t top_r    = r[top_index];
+              q31_t top_i    = i[top_index];
+              q31_t bottom_r = r[bottom_index];
+              q31_t bottom_i = i[bottom_index];
+
+              q31_t sum_r  = q31_shift(q31_saturating_add(top_r, bottom_r), -1);
+              q31_t sum_i  = q31_shift(q31_saturating_add(top_i, bottom_i), -1);
+              q31_t diff_r = q31_shift(q31_saturating_sub(top_r, bottom_r), -1);
+              q31_t diff_i = q31_shift(q31_saturating_sub(top_i, bottom_i), -1);
+
+              tempr = q31_saturating_sub(q31_mul_norm(diff_r, wr), q31_mul_norm(diff_i, wi));
+              tempi = q31_saturating_add(q31_mul_norm(diff_r, wi), q31_mul_norm(diff_i, wr));
+
+              r[top_index]     = sum_r;
+              i[top_index]     = sum_i;
+              r[bottom_index]  = tempr;
+              i[bottom_index]  = tempi;
+
+              omega           += num_sub_transforms;
+              top_index++;
+            }
+          top_index += num_butterflies;
+        }
+      num_sub_transforms <<= 1;
+      num_butterflies    >>= 1;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_raw_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  fastsin_t two_pi_over_N = (fastsin_t)(SIN_TWO_PI / N), omega_two_pi_over_n;
+  int sub_transform, butterfly;
+  int num_sub_transforms = N, num_butterflies = 1, omega;
+  q31_t wr, wi, *r=real, *i=imag, tempr, tempi;
+  int top_index = 0, bottom_index;
+
+  while((num_sub_transforms >>= 1) > 0)
+    {
+      top_index = 0;
+      for(sub_transform=0; sub_transform<num_sub_transforms; sub_transform++)
+        {
+          omega = 0;
+          for(butterfly=0; butterfly<num_butterflies; butterfly++)
+            {
+              bottom_index        = num_butterflies + top_index;
+              omega_two_pi_over_n = omega * two_pi_over_N;
+              wr                  = fastcos_q31(omega_two_pi_over_n);
+              wi                  = fastsin_q31(omega_two_pi_over_n);
+
+              q31_t top_r    = r[top_index];
+              q31_t top_i    = i[top_index];
+              q31_t bottom_r = r[bottom_index];
+              q31_t bottom_i = i[bottom_index];
+
+              tempr = q31_saturating_sub(q31_mul_norm(bottom_r, wr), q31_mul_norm(bottom_i, wi));
+              tempi = q31_saturating_add(q31_mul_norm(bottom_r, wi), q31_mul_norm(bottom_i, wr));
+
+              q31_t sum_r = q31_shift(q31_saturating_add(top_r, tempr), -1);
+              q31_t sum_i = q31_shift(q31_saturating_add(top_i, tempi), -1);
+              q31_t dif_r = q31_shift(q31_saturating_sub(top_r, tempr), -1);
+              q31_t dif_i = q31_shift(q31_saturating_sub(top_i, tempi), -1);
+
+              r[top_index]    = sum_r;
+              i[top_index]    = sum_i;
+              r[bottom_index] = dif_r;
+              i[bottom_index] = dif_i;
+
+              omega          += num_sub_transforms;
+              top_index++;
+            }
+          top_index += num_butterflies;
+        }
+      num_butterflies <<= 1;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_complex_forward_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+#ifdef BTT_USE_ESP_DSP
+  /* Optional ESP-DSP acceleration path. */
+  size_t scratch_bytes = (size_t)N * 2 * sizeof(*real);
+  q31_t* scratch = (q31_t*)alloca(scratch_bytes);
+  if(scratch != NULL)
+    {
+      for(int idx = 0; idx < N; ++idx)
+        {
+          scratch[2 * idx]     = real[idx];
+          scratch[2 * idx + 1] = imag[idx];
+        }
+      BTT_DSP_FFT2R_Q32(scratch, N);
+      BTT_DSP_BITREV2R_Q32(scratch, N);
+      BTT_DSP_CPLX2REAL_Q32(scratch, N);
+      for(int idx = 0; idx < N; ++idx)
+        {
+          real[idx] = scratch[2 * idx];
+          imag[idx] = scratch[2 * idx + 1];
+        }
+      return;
+    }
+#endif
+  dft_raw_forward_dft_q31(real, imag, N);
+  dft_bit_reverse_indices_q31(real, imag, N);
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_complex_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+#if defined(BTT_USE_ESP_DSP) && defined(BTT_DSP_FFT2R_INV_Q32)
+  size_t scratch_bytes = (size_t)N * 2 * sizeof(*real);
+  q31_t* scratch = (q31_t*)alloca(scratch_bytes);
+  if(scratch != NULL)
+    {
+      for(int idx = 0; idx < N; ++idx)
+        {
+          scratch[2 * idx]     = real[idx];
+          scratch[2 * idx + 1] = imag[idx];
+        }
+      BTT_DSP_FFT2R_INV_Q32(scratch, N);
+      BTT_DSP_BITREV2R_Q32(scratch, N);
+      BTT_DSP_CPLX2REAL_Q32(scratch, N);
+      for(int idx = 0; idx < N; ++idx)
+        {
+          real[idx] = scratch[2 * idx];
+          imag[idx] = scratch[2 * idx + 1];
+        }
+      return;
+    }
+#endif
+  dft_bit_reverse_indices_q31(real, imag, N);
+  dft_raw_inverse_dft_q31(real, imag, N);
+}
+
+/*-----------------------------------------------------------------------*/
 void dft_rect_to_polar(dft_sample_t* real, dft_sample_t* imag, int N)
 {
   dft_sample_t temp;
@@ -859,4 +1069,71 @@ void dft_apply_window(dft_sample_t* real, dft_sample_t* window, int N)
 {
   while(N-- > 0)
     *real++ *= *window++;
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_blackman_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  float a = 0;
+  float a0 = (1-a)/2.0f;
+  float a1 = 1/2.0f;
+  float a2 = a/2.0f;
+
+  for(i=0; i<N; i++)
+    {
+      float w = a0 - a1*cosf(phase) + a2*cosf(2*phase);
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_hann_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  for(i=0; i<N; i++)
+    {
+      float w = 0.5f * (1-cosf(phase));
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_hamming_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  for(i=0; i<N; i++)
+    {
+      float w = 0.54f - 0.46f * cosf(phase);
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_half_sine_window_q31(q31_t* window, int N)
+{
+  int i;
+  float coeff = M_PI / (float)N;
+  for(i=0; i<N; i++)
+    *window++ = q31_from_float(sinf(coeff * (i+0.5f)));
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_apply_window_q31(q31_t* real, const q31_t* window, int N)
+{
+  while(N-- > 0)
+    {
+      *real = q31_mul(*real, *window);
+      ++real;
+      ++window;
+    }
 }
