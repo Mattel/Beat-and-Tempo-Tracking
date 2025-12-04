@@ -27,6 +27,12 @@ void   dft_init_hamming_window_q31  (q31_t* window, int N);
 void   dft_init_half_sine_window_q31(q31_t* window, int N);
 void   dft_apply_window_q31         (q31_t* real,   const q31_t* window, int N);
 
+void   dft_bit_reverse_indices_q31  (q31_t* real,   q31_t* imag,   int N);
+void   dft_raw_forward_dft_q31      (q31_t* real,   q31_t* imag,   int N);
+void   dft_raw_inverse_dft_q31      (q31_t* real,   q31_t* imag,   int N);
+void   dft_complex_forward_dft_q31  (q31_t* real,   q31_t* imag,   int N);
+void   dft_complex_inverse_dft_q31  (q31_t* real,   q31_t* imag,   int N);
+
 void   dft_raw_forward_dft      (dft_sample_t* real,   dft_sample_t* imag,   int N);
 void   dft_raw_inverse_dft      (dft_sample_t* real,   dft_sample_t* imag,   int N);
 void   dft_bit_reverse_indices  (dft_sample_t* real,   dft_sample_t* imag,   int N);

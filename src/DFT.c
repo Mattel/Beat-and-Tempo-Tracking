@@ -712,6 +712,151 @@ void dft_bit_reverse_indices(dft_sample_t* real, dft_sample_t* imag, int N)
 }
 
 /*-----------------------------------------------------------------------*/
+void dft_bit_reverse_indices_q31(q31_t* real, q31_t* imag, int N)
+{
+  q31_t temp;
+  int N_over_2 = N >> 1;
+  unsigned n, bit, rev;
+  unsigned n_reversed = N_over_2;
+
+  for(n=1; n<N; n++)
+    {
+      if(n_reversed > n)
+        {
+          temp             = real[n]         ;
+          real[n]          = real[n_reversed];
+          real[n_reversed] = temp            ;
+          temp             = imag[n]         ;
+          imag[n]          = imag[n_reversed];
+          imag[n_reversed] = temp            ;
+        }
+      bit = ~n & (n + 1);
+      rev = N_over_2 / bit;
+      n_reversed ^= (N - 1) & ~(rev - 1);
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+static inline q31_t q31_mul_norm(q31_t a, q31_t b)
+{
+  /* Saturated multiply with post-scale to preserve headroom during butterflies. */
+  return q31_shift(q31_mul(a, b), -1);
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_raw_forward_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  fastsin_t two_pi_over_N = (fastsin_t)(SIN_TWO_PI / N), omega_two_pi_over_n;
+  int sub_transform, butterfly;
+  int num_sub_transforms = 1, num_butterflies = N/2, omega;
+  q31_t wr, wi, *r=real, *i=imag, tempr, tempi;
+  int top_index = 0, bottom_index;
+
+  while(num_sub_transforms < N)
+    {
+      top_index = 0;
+      for(sub_transform=0; sub_transform<num_sub_transforms; sub_transform++)
+        {
+          omega = 0;
+          for(butterfly=0; butterfly<num_butterflies; butterfly++)
+            {
+              bottom_index        = num_butterflies + top_index;
+              omega_two_pi_over_n = omega * two_pi_over_N;
+              wr                  =  fastcos_q31(omega_two_pi_over_n);
+              wi                  = -fastsin_q31(omega_two_pi_over_n);
+
+              q31_t top_r    = r[top_index];
+              q31_t top_i    = i[top_index];
+              q31_t bottom_r = r[bottom_index];
+              q31_t bottom_i = i[bottom_index];
+
+              q31_t sum_r  = q31_shift(q31_saturating_add(top_r, bottom_r), -1);
+              q31_t sum_i  = q31_shift(q31_saturating_add(top_i, bottom_i), -1);
+              q31_t diff_r = q31_shift(q31_saturating_sub(top_r, bottom_r), -1);
+              q31_t diff_i = q31_shift(q31_saturating_sub(top_i, bottom_i), -1);
+
+              tempr = q31_saturating_sub(q31_mul_norm(diff_r, wr), q31_mul_norm(diff_i, wi));
+              tempi = q31_saturating_add(q31_mul_norm(diff_r, wi), q31_mul_norm(diff_i, wr));
+
+              r[top_index]     = sum_r;
+              i[top_index]     = sum_i;
+              r[bottom_index]  = tempr;
+              i[bottom_index]  = tempi;
+
+              omega           += num_sub_transforms;
+              top_index++;
+            }
+          top_index += num_butterflies;
+        }
+      num_sub_transforms <<= 1;
+      num_butterflies    >>= 1;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_raw_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  fastsin_t two_pi_over_N = (fastsin_t)(SIN_TWO_PI / N), omega_two_pi_over_n;
+  int sub_transform, butterfly;
+  int num_sub_transforms = N, num_butterflies = 1, omega;
+  q31_t wr, wi, *r=real, *i=imag, tempr, tempi;
+  int top_index = 0, bottom_index;
+
+  while((num_sub_transforms >>= 1) > 0)
+    {
+      top_index = 0;
+      for(sub_transform=0; sub_transform<num_sub_transforms; sub_transform++)
+        {
+          omega = 0;
+          for(butterfly=0; butterfly<num_butterflies; butterfly++)
+            {
+              bottom_index        = num_butterflies + top_index;
+              omega_two_pi_over_n = omega * two_pi_over_N;
+              wr                  = fastcos_q31(omega_two_pi_over_n);
+              wi                  = fastsin_q31(omega_two_pi_over_n);
+
+              q31_t top_r    = r[top_index];
+              q31_t top_i    = i[top_index];
+              q31_t bottom_r = r[bottom_index];
+              q31_t bottom_i = i[bottom_index];
+
+              tempr = q31_saturating_sub(q31_mul_norm(bottom_r, wr), q31_mul_norm(bottom_i, wi));
+              tempi = q31_saturating_add(q31_mul_norm(bottom_r, wi), q31_mul_norm(bottom_i, wr));
+
+              q31_t sum_r = q31_shift(q31_saturating_add(top_r, tempr), -1);
+              q31_t sum_i = q31_shift(q31_saturating_add(top_i, tempi), -1);
+              q31_t dif_r = q31_shift(q31_saturating_sub(top_r, tempr), -1);
+              q31_t dif_i = q31_shift(q31_saturating_sub(top_i, tempi), -1);
+
+              r[top_index]    = sum_r;
+              i[top_index]    = sum_i;
+              r[bottom_index] = dif_r;
+              i[bottom_index] = dif_i;
+
+              omega          += num_sub_transforms;
+              top_index++;
+            }
+          top_index += num_butterflies;
+        }
+      num_butterflies <<= 1;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_complex_forward_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  dft_raw_forward_dft_q31(real, imag, N);
+  dft_bit_reverse_indices_q31(real, imag, N);
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_complex_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
+{
+  dft_bit_reverse_indices_q31(real, imag, N);
+  dft_raw_inverse_dft_q31(real, imag, N);
+}
+
+/*-----------------------------------------------------------------------*/
 void dft_rect_to_polar(dft_sample_t* real, dft_sample_t* imag, int N)
 {
   dft_sample_t temp;
