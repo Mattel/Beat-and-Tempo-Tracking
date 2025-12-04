@@ -860,3 +860,70 @@ void dft_apply_window(dft_sample_t* real, dft_sample_t* window, int N)
   while(N-- > 0)
     *real++ *= *window++;
 }
+
+/*-----------------------------------------------------------------------*/
+void dft_init_blackman_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  float a = 0;
+  float a0 = (1-a)/2.0f;
+  float a1 = 1/2.0f;
+  float a2 = a/2.0f;
+
+  for(i=0; i<N; i++)
+    {
+      float w = a0 - a1*cosf(phase) + a2*cosf(2*phase);
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_hann_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  for(i=0; i<N; i++)
+    {
+      float w = 0.5f * (1-cosf(phase));
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_hamming_window_q31(q31_t* window, int N)
+{
+  int i;
+  float phase = 0;
+  float phase_increment = 2*M_PI / (float)N;
+  for(i=0; i<N; i++)
+    {
+      float w = 0.54f - 0.46f * cosf(phase);
+      *window++ = q31_from_float(w);
+      phase += phase_increment;
+    }
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_init_half_sine_window_q31(q31_t* window, int N)
+{
+  int i;
+  float coeff = M_PI / (float)N;
+  for(i=0; i<N; i++)
+    *window++ = q31_from_float(sinf(coeff * (i+0.5f)));
+}
+
+/*-----------------------------------------------------------------------*/
+void dft_apply_window_q31(q31_t* real, const q31_t* window, int N)
+{
+  while(N-- > 0)
+    {
+      *real = q31_mul(*real, *window);
+      ++real;
+      ++window;
+    }
+}
