@@ -150,7 +150,6 @@ void stft_process(STFT* self, dft_sample_t* real_input, int len, stft_onprocess_
 
           if(self->use_fixed_point)
             {
-              int stage_shift = stft_log2(self->fft_N);
               for(j=0; j<self->window_size; j++)
                 {
                   self->real_q31[j] = self->running_input_q31[(self->input_index+j) % self->window_size];
@@ -164,45 +163,42 @@ void stft_process(STFT* self, dft_sample_t* real_input, int len, stft_onprocess_
               dft_apply_window_q31(self->real_q31, self->window_q31, self->window_size);
               dft_complex_forward_dft_q31(self->real_q31, self->imag_q31, self->fft_N);
 
-              for(j=0; j<self->fft_N; j++)
-                {
-                  self->real_q31[j] = q31_shift(self->real_q31[j], stage_shift);
-                  self->imag_q31[j] = q31_shift(self->imag_q31[j], stage_shift);
-                }
-
               /* pack complex spectrum into rdft-style real buffer for callback */
               int N_over_2 = self->fft_N >> 1;
-              self->real[0] = q31_to_float(self->real_q31[0]);
+              float fft_scale = (float)self->fft_N;
+              self->real[0] = q31_to_float(self->real_q31[0]) * fft_scale;
               for(j=1; j<N_over_2; j++)
                 {
-                  self->real[j] = q31_to_float(self->real_q31[j]);
-                  self->real[self->fft_N - j] = q31_to_float(self->imag_q31[j]);
+                  self->real[j] = q31_to_float(self->real_q31[j]) * fft_scale;
+                  self->real[self->fft_N - j] = q31_to_float(self->imag_q31[j]) * fft_scale;
                 }
-              self->real[N_over_2] = q31_to_float(self->real_q31[N_over_2]);
+              self->real[N_over_2] = q31_to_float(self->real_q31[N_over_2]) * fft_scale;
 
               onprocess(onprocess_self, self->real, self->fft_N);
 
               if(self->should_resynthesize)
                 {
                   /* unpack rdft-style real buffer back into complex q31 spectrum */
-                  self->real_q31[0] = q31_from_float(self->real[0]);
+                  self->real_q31[0] = q31_from_float(self->real[0] / fft_scale);
                   self->imag_q31[0] = 0;
                   for(j=1; j<N_over_2; j++)
                     {
-                      q31_t re = q31_from_float(self->real[j]);
-                      q31_t im = q31_from_float(self->real[self->fft_N - j]);
+                      q31_t re = q31_from_float(self->real[j] / fft_scale);
+                      q31_t im = q31_from_float(self->real[self->fft_N - j] / fft_scale);
                       self->real_q31[j] = re;
                       self->imag_q31[j] = im;
                       self->real_q31[self->fft_N - j] = re;
                       self->imag_q31[self->fft_N - j] = -im;
                     }
-                  self->real_q31[N_over_2] = q31_from_float(self->real[N_over_2]);
+                  self->real_q31[N_over_2] = q31_from_float(self->real[N_over_2] / fft_scale);
                   self->imag_q31[N_over_2] = 0;
 
                   dft_complex_inverse_dft_q31(self->real_q31, self->imag_q31, self->fft_N);
                   for(j=0; j<self->fft_N; j++)
                     {
-                      q31_t rescaled = q31_shift(self->real_q31[j], stage_shift);
+                      /* Inverse butterflies already carry the 1/N scale factor, so
+                       * avoid an extra stage_shift amplification before overlap-add. */
+                      q31_t rescaled = self->real_q31[j];
                       self->running_output_q31[(self->output_index+j) % self->fft_N] =
                         q31_saturating_add(self->running_output_q31[(self->output_index+j) % self->fft_N], rescaled);
                     }
