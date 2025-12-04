@@ -1,4 +1,20 @@
-const float sinTable[] = 
+#include <stdbool.h>
+#include "fixed_math.h"
+
+static bool q31_ready = false;
+q31_t sinTableQ31[SIN_NUM_SAMPLES] = {0};
+
+static void fastsin_init_q31(void)
+{
+  if (q31_ready) return;
+  for (int idx = 0; idx < SIN_NUM_SAMPLES; ++idx)
+    {
+      sinTableQ31[idx] = q31_from_float(sinTable[idx]);
+    }
+  q31_ready = true;
+}
+
+const float sinTable[] =
 {
   0.000000f,  0.001534f,  0.003068f,  0.004602f,  0.006136f,  0.007670f,  0.009204f,  0.010738f,  0.012272f,  0.013805f,  
   0.015339f,  0.016873f,  0.018407f,  0.019940f,  0.021474f,  0.023008f,  0.024541f,  0.026075f,  0.027608f,  0.029142f,  
@@ -409,6 +425,34 @@ const float sinTable[] =
   -0.055195f,  -0.053664f,  -0.052132f,  -0.050600f,  -0.049068f,  -0.047535f,  -0.046003f,  -0.044471f,  -0.042938f,  -0.041406f,  
   -0.039873f,  -0.038340f,  -0.036807f,  -0.035274f,  -0.033741f,  -0.032208f,  -0.030675f,  -0.029142f,  -0.027608f,  -0.026075f,  
   -0.024541f,  -0.023008f,  -0.021474f,  -0.019940f,  -0.018407f,  -0.016873f,  -0.015339f,  -0.013805f,  -0.012272f,  -0.010738f,  
-  -0.009204f,  -0.007670f,  -0.006136f,  -0.004602f,  -0.003068f,  -0.001534f,  
+  -0.009204f,  -0.007670f,  -0.006136f,  -0.004602f,  -0.003068f,  -0.001534f,
 };
+
+float fastsin(fastsin_t angle)
+{
+  return fastsin_q31(angle) * (1.0f / 2147483648.0f);
+}
+
+float fastcos(fastsin_t angle)
+{
+  return fastcos_q31(angle) * (1.0f / 2147483648.0f);
+}
+
+q31_t fastsin_q31(fastsin_t angle)
+{
+  fastsin_init_q31();
+  return fastsin_q31_cached(angle);
+}
+
+q31_t fastcos_q31(fastsin_t angle)
+{
+  fastsin_init_q31();
+  return fastcos_q31_cached(angle);
+}
+
+const q31_t* fastsin_q31_table(void)
+{
+  fastsin_init_q31();
+  return sinTableQ31;
+}
  
