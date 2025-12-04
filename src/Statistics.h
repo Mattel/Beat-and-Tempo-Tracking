@@ -13,6 +13,8 @@
 extern "C"{
 #endif   //(__cplusplus)
 
+#include "fixed_math.h"
+
 /*--------------------------------------------------------------------*/
 /*--___-------_-_--------------_----------------------------------------
    / _ \ _ _ | (_)_ _  ___    /_\__ _____ _ _ __ _ __ _ ___ 
@@ -30,6 +32,8 @@ float              online_average_mean              (OnlineAverage* self);
 float              online_average_variance          (OnlineAverage* self);
 float              online_average_std_dev           (OnlineAverage* self);
 void               online_average_update            (OnlineAverage* self, float     x);
+void               online_average_use_fixed_point   (OnlineAverage* self, int use_fixed_point, int headroom_bits);
+void               online_average_update_q31        (OnlineAverage* self, q31_t     x);
 
 /*--------------------------------------------------------------------*/
 /*-__--__---------_---------------_-------------------------------------
@@ -51,6 +55,8 @@ float              moving_average_mean              (MovingAverage* self);
 float              moving_average_variance          (MovingAverage* self);
 float              moving_average_std_dev           (MovingAverage* self);
 void               moving_average_update            (MovingAverage* self, float     x);
+void               moving_average_use_fixed_point   (MovingAverage* self, int use_fixed_point, int headroom_bits);
+void               moving_average_update_q31        (MovingAverage* self, q31_t     x);
 
 /*--------------------------------------------------------------------*/
 /*--___-------_-_------------___------------------------_---------------

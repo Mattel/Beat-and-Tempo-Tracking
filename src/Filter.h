@@ -1,8 +1,10 @@
 #ifndef __FILTER__
 
-#ifdef __cplusplus 
+#ifdef __cplusplus
 extern "C"{
-#endif  //__cplusplus 
+#endif  //__cplusplus
+
+#include "fixed_math.h"
 
 typedef struct opaque_filter_struct Filter;
 
@@ -40,9 +42,15 @@ int             filter_get_order      (Filter* self);
 void            filter_set_window_type(Filter* self, filter_window_t window);
 filter_window_t filter_get_window_type(Filter* self);
 
-void            filter_process_data   (Filter* self, float* data, int num_samples);
+void            filter_set_use_fixed_point(Filter* self, int use_fixed_point);
+int             filter_get_use_fixed_point(Filter* self);
+void            filter_set_headroom_bits(Filter* self, int bits);
+int             filter_get_headroom_bits(Filter* self);
 
-#ifdef __cplusplus 
+void            filter_process_data   (Filter* self, float* data, int num_samples);
+void            filter_process_data_q31(Filter* self, q31_t* data, int num_samples);
+
+#ifdef __cplusplus
 }
 #endif
 #endif //__FILTER__

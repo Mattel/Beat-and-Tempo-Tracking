@@ -12,6 +12,18 @@
 #include <stdlib.h>
 #include <string.h> //memset, memcpy
 
+#ifndef STATISTICS_FIXED_DEFAULT
+#  ifdef BTT_USE_FIXED_POINT
+#    define STATISTICS_FIXED_DEFAULT 1
+#  else
+#    define STATISTICS_FIXED_DEFAULT 0
+#  endif
+#endif
+
+#ifndef STATISTICS_DEFAULT_HEADROOM_BITS
+#  define STATISTICS_DEFAULT_HEADROOM_BITS 1
+#endif
+
 /*--------------------------------------------------------------------*/
 /*--___-------_-_-------------------------------------------------------
    / _ \ _ _ | (_)_ _  ___    /_\__ _____ _ _ __ _ __ _ ___ 
@@ -28,6 +40,10 @@ struct opaque_online_average_struct
   float        old_mean;
   float        s;
   float        old_s;
+  int          use_fixed_point;
+  int          headroom_bits;
+  int64_t      sum_q63;
+  int64_t      sumsq_q63;
 };
 
 /*--------------------------------------------------------------------*/
@@ -50,6 +66,10 @@ void online_average_init(OnlineAverage* self)
   self->old_mean   = 0;
   self->s          = 0;
   self->old_s      = 0;
+  self->use_fixed_point = STATISTICS_FIXED_DEFAULT;
+  self->headroom_bits   = STATISTICS_DEFAULT_HEADROOM_BITS;
+  self->sum_q63         = 0;
+  self->sumsq_q63       = 0;
 }
 
 /*--------------------------------------------------------------------*/
@@ -89,8 +109,13 @@ float      online_average_std_dev(OnlineAverage* self)
 /*--------------------------------------------------------------------*/
 void online_average_update(OnlineAverage* self, float     x)
 {
+  if(self->use_fixed_point)
+    {
+      online_average_update_q31(self, q31_from_float(x));
+      return;
+    }
   ++self->n;
-  
+
   if (self->n == 1)
     {
       self->old_mean = self->mean = x;
@@ -104,6 +129,40 @@ void online_average_update(OnlineAverage* self, float     x)
       self->old_s    = self->s;
       self->variance = self->s / (self->n - 1);
     }
+}
+
+/*--------------------------------------------------------------------*/
+void online_average_use_fixed_point(OnlineAverage* self, int use_fixed_point, int headroom_bits)
+{
+  self->use_fixed_point = (use_fixed_point != 0);
+  if(headroom_bits < 0)
+    headroom_bits = 0;
+  if(headroom_bits > 16)
+    headroom_bits = 16;
+  self->headroom_bits = headroom_bits;
+}
+
+/*--------------------------------------------------------------------*/
+void online_average_update_q31(OnlineAverage* self, q31_t x)
+{
+  ++self->n;
+  int64_t sample = (int64_t)x >> self->headroom_bits;
+  self->sum_q63   += sample;
+  self->sumsq_q63 += (sample * sample);
+
+  double n = (double)self->n;
+  double mean = (double)self->sum_q63 / n;
+  double variance = 0.0;
+
+  if(self->n > 1)
+    {
+      double mean_sq = mean * mean;
+      variance = ((double)self->sumsq_q63 / n) - mean_sq;
+      variance *= n / (n - 1.0);
+    }
+
+  self->mean     = (float)(mean / 2147483648.0);
+  self->variance = (float)(variance / (2147483648.0 * 2147483648.0));
 }
 
 /*--------------------------------------------------------------------*/
@@ -125,6 +184,11 @@ struct opaque_moving_average_struct
   unsigned       current_sample_index;
   float          s;
   OnlineAverage* online;  //used until there are at least self->N samples
+  int            use_fixed_point;
+  int            headroom_bits;
+  int64_t        sum_q63;
+  int64_t        sumsq_q63;
+  q31_t*         past_samples_q31;
 };
 
 /*--------------------------------------------------------------------*/
@@ -137,7 +201,11 @@ MovingAverage* moving_average_new(unsigned N)
       self->past_samples = calloc(self->N, sizeof(*self->past_samples));
       if(self->past_samples == NULL)
         return moving_average_destroy(self);
-      
+
+      self->past_samples_q31 = calloc(self->N, sizeof(*self->past_samples_q31));
+      if(self->past_samples_q31 == NULL)
+        return moving_average_destroy(self);
+
       self->online = online_average_new();
       if(self->online == NULL)
         return moving_average_destroy(self);
@@ -154,7 +222,13 @@ void moving_average_init(MovingAverage* self)
   self->variance             = 0;
   self->current_sample_index = 0;
   self->s                    = 0;
-  online_average_init(self->online);  
+  self->use_fixed_point      = STATISTICS_FIXED_DEFAULT;
+  self->headroom_bits        = STATISTICS_DEFAULT_HEADROOM_BITS;
+  self->sum_q63              = 0;
+  self->sumsq_q63            = 0;
+  if(self->past_samples_q31 != NULL)
+    memset(self->past_samples_q31, 0, self->N * sizeof(*self->past_samples_q31));
+  online_average_init(self->online);
 }
 
 /*--------------------------------------------------------------------*/
@@ -164,9 +238,11 @@ MovingAverage* moving_average_destroy(MovingAverage* self)
     {
       if(self->past_samples != NULL)
         free(self->past_samples);
-        
+      if(self->past_samples_q31 != NULL)
+        free(self->past_samples_q31);
+
       self->online = online_average_destroy(self->online);
-      
+
       free(self);
     }
   return (MovingAverage*) NULL;
@@ -204,6 +280,11 @@ float      moving_average_std_dev(MovingAverage* self)
 /*--------------------------------------------------------------------*/
 void moving_average_update(MovingAverage* self, float     x)
 {
+  if(self->use_fixed_point)
+    {
+      moving_average_update_q31(self, q31_from_float(x));
+      return;
+    }
   float     new_mean;
   float     oldest_sample = self->past_samples[self->current_sample_index];
   
@@ -226,6 +307,50 @@ void moving_average_update(MovingAverage* self, float     x)
       self->mean     = new_mean;
     }
 };
+
+/*--------------------------------------------------------------------*/
+void moving_average_use_fixed_point(MovingAverage* self, int use_fixed_point, int headroom_bits)
+{
+  self->use_fixed_point = (use_fixed_point != 0);
+  if(headroom_bits < 0)
+    headroom_bits = 0;
+  if(headroom_bits > 16)
+    headroom_bits = 16;
+  self->headroom_bits = headroom_bits;
+  online_average_use_fixed_point(self->online, use_fixed_point, headroom_bits);
+}
+
+/*--------------------------------------------------------------------*/
+void moving_average_update_q31(MovingAverage* self, q31_t x)
+{
+  int64_t sample = (int64_t)x >> self->headroom_bits;
+  int64_t oldest_sample = (int64_t)self->past_samples_q31[self->current_sample_index] >> self->headroom_bits;
+
+  self->past_samples_q31[self->current_sample_index] = x;
+  ++self->current_sample_index;
+  self->current_sample_index %= self->N;
+
+  if(online_average_n(self->online) < self->N)
+    {
+      self->sum_q63   += sample;
+      self->sumsq_q63 += sample * sample;
+      online_average_update_q31(self->online, x);
+      self->variance = online_average_variance(self->online);
+      self->mean     = online_average_mean(self->online);
+      self->s        = self->variance * self->N;
+      return;
+    }
+
+  self->sum_q63   += sample - oldest_sample;
+  self->sumsq_q63 += (sample * sample) - (oldest_sample * oldest_sample);
+
+  double mean      = (double)self->sum_q63 / (double)self->N;
+  double variance  = ((double)self->sumsq_q63 / (double)self->N) - (mean * mean);
+
+  self->mean     = (float)(mean / 2147483648.0);
+  self->variance = (float)(variance / (2147483648.0 * 2147483648.0));
+  self->s        = self->variance * self->N;
+}
 
 /*--------------------------------------------------------------------*/
 /*--___-------_-_------------___------------------------_---------------

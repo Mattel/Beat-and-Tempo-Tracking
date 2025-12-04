@@ -2,6 +2,18 @@
 #include "math.h"
 #include <stdlib.h>
 
+#ifndef FILTER_FIXED_DEFAULT
+#  ifdef BTT_USE_FIXED_POINT
+#    define FILTER_FIXED_DEFAULT 1
+#  else
+#    define FILTER_FIXED_DEFAULT 0
+#  endif
+#endif
+
+#ifndef FILTER_DEFAULT_HEADROOM_BITS
+#  define FILTER_DEFAULT_HEADROOM_BITS 1
+#endif
+
 #define TWO_PI (M_PI * 2.0f)
 
 /*-------------------------------------------------*/
@@ -26,7 +38,15 @@ struct opaque_filter_struct
   float*          prev_samples;
   float*          window;
   float*          coeffs;
+  q31_t*          prev_samples_q31;
+  q31_t*          window_q31;
+  q31_t*          coeffs_q31;
+  int             use_fixed_point;
+  int             headroom_bits;
 };
+
+static void filter_sync_q31_window (Filter* self);
+static void filter_sync_q31_coeffs (Filter* self);
 
 /*-------------------------------------------------*/
 Filter* filter_new(filter_type_t type, float cutoff, int order)
@@ -45,9 +65,17 @@ Filter* filter_new(filter_type_t type, float cutoff, int order)
       if(self->window == NULL) return filter_destroy(self);
       self->coeffs = calloc(order+1, sizeof(*(self->coeffs)));
       if(self->coeffs == NULL) return filter_destroy(self);
+      self->prev_samples_q31 = calloc(order+1, sizeof(*(self->prev_samples_q31)));
+      if(self->prev_samples_q31 == NULL) return filter_destroy(self);
+      self->window_q31 = calloc(order+1, sizeof(*(self->window_q31)));
+      if(self->window_q31 == NULL) return filter_destroy(self);
+      self->coeffs_q31 = calloc(order+1, sizeof(*(self->coeffs_q31)));
+      if(self->coeffs_q31 == NULL) return filter_destroy(self);
+      self->use_fixed_point = FILTER_FIXED_DEFAULT;
+      self->headroom_bits = FILTER_DEFAULT_HEADROOM_BITS;
       filter_set_window_type(self, FILTER_WINDOW_BLACKMANN); //triggers calculation of window and coeffs
     }
-  
+
   return self;
 }
 
@@ -62,6 +90,12 @@ Filter* filter_destroy(Filter* self)
         free(self->coeffs);
       if(self->prev_samples != NULL)
         free(self->prev_samples);
+      if(self->window_q31 != NULL)
+        free(self->window_q31);
+      if(self->coeffs_q31 != NULL)
+        free(self->coeffs_q31);
+      if(self->prev_samples_q31 != NULL)
+        free(self->prev_samples_q31);
 
       free(self);
     }
@@ -74,6 +108,8 @@ void            filter_clear          (Filter* self)
   int i;
   for(i=0; i<self->order+1; i++)
     self->prev_samples[i] = 0;
+  for(i=0; i<self->order+1; i++)
+    self->prev_samples_q31[i] = 0;
 }
 
 /*-------------------------------------------------*/
@@ -194,6 +230,58 @@ filter_window_t filter_get_window_type(Filter* self)
 }
 
 /*-------------------------------------------------*/
+void filter_set_use_fixed_point(Filter* self, int use_fixed_point)
+{
+  self->use_fixed_point = (use_fixed_point != 0);
+}
+
+/*-------------------------------------------------*/
+int filter_get_use_fixed_point(Filter* self)
+{
+  return self->use_fixed_point;
+}
+
+/*-------------------------------------------------*/
+void filter_set_headroom_bits(Filter* self, int bits)
+{
+  if(bits < 0)
+    bits = 0;
+  if(bits > 8)
+    bits = 8;
+  self->headroom_bits = bits;
+  filter_sync_q31_coeffs(self);
+}
+
+/*-------------------------------------------------*/
+int filter_get_headroom_bits(Filter* self)
+{
+  return self->headroom_bits;
+}
+
+/*-------------------------------------------------*/
+static void filter_sync_q31_window(Filter* self)
+{
+  if(self->window_q31 == NULL)
+    return;
+  int n = self->order + 1;
+  for(int i = 0; i < n; ++i)
+    self->window_q31[i] = q31_from_float(self->window[i]);
+}
+
+/*-------------------------------------------------*/
+static void filter_sync_q31_coeffs(Filter* self)
+{
+  if(self->coeffs_q31 == NULL)
+    return;
+  int n = self->order + 1;
+  for(int i = 0; i < n; ++i)
+    {
+      q31_t coeff = q31_from_float(self->coeffs[i]);
+      self->coeffs_q31[i] = q31_shift(coeff, -self->headroom_bits);
+    }
+}
+
+/*-------------------------------------------------*/
 void filter_init_lowpass_coeffs(Filter* self)
 {
   int i, n=self->order+1;
@@ -216,7 +304,8 @@ void filter_init_lowpass_coeffs(Filter* self)
 
       temp *= self->window[i];
       self->coeffs[i] = temp;
-    }  
+    }
+  filter_sync_q31_coeffs(self);
 }
 
 /*-------------------------------------------------*/
@@ -248,6 +337,7 @@ void filter_init_highpass_coeffs(Filter* self)
       temp *= self->window[i];
       self->coeffs[i] = temp;
     }
+  filter_sync_q31_coeffs(self);
 }
 
 /*-------------------------------------------------*/
@@ -275,6 +365,7 @@ void filter_init_bandpass_coeffs(Filter* self)
       temp *= self->window[i];
       self->coeffs[i] = temp;
     }
+  filter_sync_q31_coeffs(self);
 }
 
 /*-------------------------------------------------*/
@@ -289,6 +380,7 @@ void filter_init_rect_window(Filter* self)
   int i, n = self->order + 1;
   for(i=0; i<n; i++)
     self->window[i] = 1;
+  filter_sync_q31_window(self);
 }
 
 /*-------------------------------------------------*/
@@ -303,6 +395,7 @@ void filter_init_hann_window(Filter* self)
       self->window[i] = 0.5f * (1-cos(phase));
       phase += phase_increment;
     }
+  filter_sync_q31_window(self);
 }
 
 /*-------------------------------------------------*/
@@ -315,7 +408,8 @@ void filter_init_hamming_window(Filter* self)
     {
       self->window[i] = 0.54f - 0.46f * cos(phase);
       phase += phase_increment;
-    }  
+    }
+  filter_sync_q31_window(self);
 }
 
 /*-------------------------------------------------*/
@@ -333,7 +427,8 @@ void filter_init_blackmann_window(Filter* self)
     {
       self->window[i] = a0 - a1*cos(phase) + a2*cos(2*phase);
       phase += phase_increment;
-    } 
+    }
+  filter_sync_q31_window(self);
 }
 
 /*-------------------------------------------------*/
@@ -355,6 +450,33 @@ void    filter_process_data(Filter* self, float* data, int num_samples)
         output += self->prev_samples[i] * self->coeffs[i];
 
       *data++ = output;
+    }
+}
+
+/*-------------------------------------------------*/
+void    filter_process_data_q31(Filter* self, q31_t* data, int num_samples)
+{
+  int i, n = self->order + 1;
+
+  while(num_samples-- > 0)
+    {
+      for(i=self->order; i>0; i--)
+        self->prev_samples_q31[i] = self->prev_samples_q31[i-1];
+      self->prev_samples_q31[0] = *data;
+
+      int64_t acc = 0;
+      for(i=0; i<n; i++)
+        acc += ((int64_t)self->prev_samples_q31[i] * (int64_t)self->coeffs_q31[i]) >> 31;
+
+      if(self->headroom_bits > 0)
+        acc >>= self->headroom_bits;
+
+      if(acc > INT32_MAX)
+        acc = INT32_MAX;
+      else if(acc < INT32_MIN)
+        acc = INT32_MIN;
+
+      *data++ = (q31_t)acc;
     }
 }
 
