@@ -25,6 +25,16 @@ struct Opaque_STFT_Struct
   q31_t*        imag_q31;
 };
 
+static int stft_log2(int n)
+{
+  int shift = 0;
+  while((1 << shift) < n)
+    {
+      ++shift;
+    }
+  return shift;
+}
+
 #ifndef STFT_FIXED_DEFAULT
 #  ifdef BTT_USE_FIXED_POINT
 #    define STFT_FIXED_DEFAULT 1
@@ -140,6 +150,7 @@ void stft_process(STFT* self, dft_sample_t* real_input, int len, stft_onprocess_
 
           if(self->use_fixed_point)
             {
+              int stage_shift = stft_log2(self->fft_N);
               for(j=0; j<self->window_size; j++)
                 {
                   self->real_q31[j] = self->running_input_q31[(self->input_index+j) % self->window_size];
@@ -152,6 +163,12 @@ void stft_process(STFT* self, dft_sample_t* real_input, int len, stft_onprocess_
                 }
               dft_apply_window_q31(self->real_q31, self->window_q31, self->window_size);
               dft_complex_forward_dft_q31(self->real_q31, self->imag_q31, self->fft_N);
+
+              for(j=0; j<self->fft_N; j++)
+                {
+                  self->real_q31[j] = q31_shift(self->real_q31[j], stage_shift);
+                  self->imag_q31[j] = q31_shift(self->imag_q31[j], stage_shift);
+                }
 
               /* pack complex spectrum into rdft-style real buffer for callback */
               int N_over_2 = self->fft_N >> 1;
@@ -185,8 +202,9 @@ void stft_process(STFT* self, dft_sample_t* real_input, int len, stft_onprocess_
                   dft_complex_inverse_dft_q31(self->real_q31, self->imag_q31, self->fft_N);
                   for(j=0; j<self->fft_N; j++)
                     {
+                      q31_t rescaled = q31_shift(self->real_q31[j], stage_shift);
                       self->running_output_q31[(self->output_index+j) % self->fft_N] =
-                        q31_saturating_add(self->running_output_q31[(self->output_index+j) % self->fft_N], self->real_q31[j]);
+                        q31_saturating_add(self->running_output_q31[(self->output_index+j) % self->fft_N], rescaled);
                     }
                 }
             }

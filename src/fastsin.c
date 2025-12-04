@@ -1,5 +1,13 @@
 #include <stdbool.h>
+#include "fastsin.h"
 #include "fixed_math.h"
+
+#ifdef fastsin
+#undef fastsin
+#endif
+#ifdef fastcos
+#undef fastcos
+#endif
 
 static bool q31_ready = false;
 q31_t sinTableQ31[SIN_NUM_SAMPLES] = {0};

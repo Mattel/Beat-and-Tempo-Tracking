@@ -11,6 +11,28 @@
 
 #include <math.h>
 #include <float.h>
+#include <stddef.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+#ifdef BTT_USE_ESP_DSP
+#include <alloca.h>
+#ifndef BTT_DSP_FFT2R_Q32
+#define BTT_DSP_FFT2R_Q32 dsps_fft2r_q32
+#endif
+#ifndef BTT_DSP_BITREV2R_Q32
+#define BTT_DSP_BITREV2R_Q32 dsps_bit_rev2r_q32
+#endif
+#ifndef BTT_DSP_CPLX2REAL_Q32
+#define BTT_DSP_CPLX2REAL_Q32 dsps_cplx2real_q32
+#endif
+extern void BTT_DSP_FFT2R_Q32(q31_t* data, int N);
+extern void BTT_DSP_BITREV2R_Q32(q31_t* data, int N);
+extern void BTT_DSP_CPLX2REAL_Q32(q31_t* data, int N);
+#ifdef BTT_DSP_FFT2R_INV_Q32
+extern void BTT_DSP_FFT2R_INV_Q32(q31_t* data, int N);
+#endif
+#endif
 
 /*-----------------------------------------------------------------------*/
 //produces output in bit-reversed order (Decimation in Frequency)
@@ -845,6 +867,28 @@ void dft_raw_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
 /*-----------------------------------------------------------------------*/
 void dft_complex_forward_dft_q31(q31_t* real, q31_t* imag, int N)
 {
+#ifdef BTT_USE_ESP_DSP
+  /* Optional ESP-DSP acceleration path. */
+  size_t scratch_bytes = (size_t)N * 2 * sizeof(*real);
+  q31_t* scratch = (q31_t*)alloca(scratch_bytes);
+  if(scratch != NULL)
+    {
+      for(int idx = 0; idx < N; ++idx)
+        {
+          scratch[2 * idx]     = real[idx];
+          scratch[2 * idx + 1] = imag[idx];
+        }
+      BTT_DSP_FFT2R_Q32(scratch, N);
+      BTT_DSP_BITREV2R_Q32(scratch, N);
+      BTT_DSP_CPLX2REAL_Q32(scratch, N);
+      for(int idx = 0; idx < N; ++idx)
+        {
+          real[idx] = scratch[2 * idx];
+          imag[idx] = scratch[2 * idx + 1];
+        }
+      return;
+    }
+#endif
   dft_raw_forward_dft_q31(real, imag, N);
   dft_bit_reverse_indices_q31(real, imag, N);
 }
@@ -852,6 +896,27 @@ void dft_complex_forward_dft_q31(q31_t* real, q31_t* imag, int N)
 /*-----------------------------------------------------------------------*/
 void dft_complex_inverse_dft_q31(q31_t* real, q31_t* imag, int N)
 {
+#if defined(BTT_USE_ESP_DSP) && defined(BTT_DSP_FFT2R_INV_Q32)
+  size_t scratch_bytes = (size_t)N * 2 * sizeof(*real);
+  q31_t* scratch = (q31_t*)alloca(scratch_bytes);
+  if(scratch != NULL)
+    {
+      for(int idx = 0; idx < N; ++idx)
+        {
+          scratch[2 * idx]     = real[idx];
+          scratch[2 * idx + 1] = imag[idx];
+        }
+      BTT_DSP_FFT2R_INV_Q32(scratch, N);
+      BTT_DSP_BITREV2R_Q32(scratch, N);
+      BTT_DSP_CPLX2REAL_Q32(scratch, N);
+      for(int idx = 0; idx < N; ++idx)
+        {
+          real[idx] = scratch[2 * idx];
+          imag[idx] = scratch[2 * idx + 1];
+        }
+      return;
+    }
+#endif
   dft_bit_reverse_indices_q31(real, imag, N);
   dft_raw_inverse_dft_q31(real, imag, N);
 }

@@ -11,6 +11,9 @@
 #include <math.h>
 #include <stdlib.h>
 #include <string.h> //memset, memcpy
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #ifndef STATISTICS_FIXED_DEFAULT
 #  ifdef BTT_USE_FIXED_POINT

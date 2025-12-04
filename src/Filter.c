@@ -1,6 +1,9 @@
 #include "Filter.h"
 #include "math.h"
 #include <stdlib.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #ifndef FILTER_FIXED_DEFAULT
 #  ifdef BTT_USE_FIXED_POINT
